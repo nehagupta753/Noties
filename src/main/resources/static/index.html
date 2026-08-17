@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Noties 📝 — Cute AI YouTube Notes</title>
+  <meta name="description" content="Noties 📝 — Transform any YouTube video into detailed, humanized study notes with AI. Get comprehensive explanations, examples, and key takeaways instantly.">
+  <meta name="keywords" content="YouTube notes, video notes, AI notes, study notes, video summarizer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Cute Stickers Background -->
+  <div class="cute-stickers-container" aria-hidden="true">
+    <!-- Teddy Bear Sticker -->
+    <div class="sticker teddy-sticker-1">
+      <svg width="60" height="60" viewBox="0 0 100 100">
+        <circle cx="25" cy="25" r="15" fill="#e0a899"/>
+        <circle cx="75" cy="25" r="15" fill="#e0a899"/>
+        <circle cx="25" cy="25" r="8" fill="#ffccd5"/>
+        <circle cx="75" cy="25" r="8" fill="#ffccd5"/>
+        <circle cx="50" cy="55" r="32" fill="#e0a899"/>
+        <ellipse cx="50" cy="62" rx="14" ry="10" fill="#fff"/>
+        <circle cx="40" cy="48" r="4.5" fill="#3d2c25"/>
+        <circle cx="60" cy="48" r="4.5" fill="#3d2c25"/>
+        <circle cx="50" cy="58" r="3.5" fill="#3d2c25"/>
+        <path d="M 46 62 Q 50 66 54 62" stroke="#3d2c25" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <circle cx="34" cy="54" r="5" fill="#ffccd5" opacity="0.6"/>
+        <circle cx="66" cy="54" r="5" fill="#ffccd5" opacity="0.6"/>
+      </svg>
+    </div>
+    <!-- Flower Sticker 1 -->
+    <div class="sticker flower-sticker-1">
+      <svg width="45" height="45" viewBox="0 0 100 100">
+        <circle cx="50" cy="30" r="18" fill="#ffb3c6"/>
+        <circle cx="50" cy="70" r="18" fill="#ffb3c6"/>
+        <circle cx="30" cy="50" r="18" fill="#ffb3c6"/>
+        <circle cx="70" cy="50" r="18" fill="#ffb3c6"/>
+        <circle cx="50" cy="50" r="16" fill="#ffe5ec"/>
+        <circle cx="50" cy="50" r="10" fill="#ffe066"/>
+      </svg>
+    </div>
+    <!-- Flower Sticker 2 -->
+    <div class="sticker flower-sticker-2">
+      <svg width="50" height="50" viewBox="0 0 100 100">
+        <circle cx="50" cy="30" r="18" fill="#ffccd5"/>
+        <circle cx="50" cy="70" r="18" fill="#ffccd5"/>
+        <circle cx="30" cy="50" r="18" fill="#ffccd5"/>
+        <circle cx="70" cy="50" r="18" fill="#ffccd5"/>
+        <circle cx="50" cy="50" r="16" fill="#fff0f5"/>
+        <circle cx="50" cy="50" r="10" fill="#ffd166"/>
+      </svg>
+    </div>
+    <!-- Heart Sparkle Sticker -->
+    <div class="sticker sparkle-sticker-1">
+      <svg width="40" height="40" viewBox="0 0 100 100">
+        <path d="M 50 20 Q 50 50 20 50 Q 50 50 50 80 Q 50 50 80 50 Q 50 50 50 20" fill="#ffd1dc"/>
+        <circle cx="75" cy="25" r="5" fill="#ff85a1"/>
+        <circle cx="25" cy="75" r="6" fill="#ff85a1"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Interactive Panda Mascot -->
+  <div class="panda-mascot" id="panda-mascot" aria-hidden="true">
+    <div class="panda-body-wrapper">
+      <svg width="48" height="48" viewBox="0 0 100 100" class="panda-svg">
+        <defs>
+          <!-- Radial gradients for 3D sphere/clay effect -->
+          <radialGradient id="panda-white-head" cx="35%" cy="35%" r="65%" fx="30%" fy="30%">
+            <stop offset="0%" stop-color="#ffffff" />
+            <stop offset="70%" stop-color="#fdf8f9" />
+            <stop offset="90%" stop-color="#f0e2e5" />
+            <stop offset="100%" stop-color="#d9c3c7" />
+          </radialGradient>
+          
+          <radialGradient id="panda-white-body" cx="35%" cy="35%" r="65%" fx="30%" fy="30%">
+            <stop offset="0%" stop-color="#ffffff" />
+            <stop offset="75%" stop-color="#fcf5f7" />
+            <stop offset="95%" stop-color="#eddbe0" />
+            <stop offset="100%" stop-color="#d4b9bf" />
+          </radialGradient>
+
+          <radialGradient id="panda-dark-limb" cx="30%" cy="30%" r="70%" fx="25%" fy="25%">
+            <stop offset="0%" stop-color="#6e5349" />
+            <stop offset="50%" stop-color="#4a373b" />
+            <stop offset="90%" stop-color="#2d1f21" />
+            <stop offset="100%" stop-color="#1c1214" />
+          </radialGradient>
+          
+          <radialGradient id="panda-dark-patch" cx="40%" cy="40%" r="60%">
+            <stop offset="0%" stop-color="#564037" />
+            <stop offset="85%" stop-color="#362529" />
+            <stop offset="100%" stop-color="#201416" />
+          </radialGradient>
+
+          <radialGradient id="panda-pink-blush" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ffb3c6" stop-opacity="0.9" />
+            <stop offset="100%" stop-color="#ffccd5" stop-opacity="0" />
+          </radialGradient>
+
+          <radialGradient id="panda-inner-ear" cx="35%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#ffccd5" />
+            <stop offset="70%" stop-color="#ff85a1" />
+            <stop offset="100%" stop-color="#ff5c8a" />
+          </radialGradient>
+          
+          <!-- Drop shadows for layers to give overlap depth -->
+          <filter id="shadow-body" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#4a373b" flood-opacity="0.25" />
+          </filter>
+          <filter id="shadow-head" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#4a373b" flood-opacity="0.2" />
+          </filter>
+          <filter id="shadow-nose" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="1.5" stdDeviation="1" flood-color="#221713" flood-opacity="0.3" />
+          </filter>
+        </defs>
+
+        <!-- Floor Contact Shadow (floating effect) -->
+        <ellipse cx="50" cy="95" rx="28" ry="4" fill="#ffccd5" opacity="0.8" />
+
+        <!-- Ear Left -->
+        <circle cx="32" cy="22" r="9.5" fill="url(#panda-dark-limb)" />
+        <circle cx="32" cy="22" r="5" fill="url(#panda-inner-ear)" />
+
+        <!-- Ear Right -->
+        <circle cx="68" cy="22" r="9.5" fill="url(#panda-dark-limb)" />
+        <circle cx="68" cy="22" r="5" fill="url(#panda-inner-ear)" />
+
+        <!-- Foot Left -->
+        <circle cx="34" cy="90" r="10" fill="url(#panda-dark-limb)" />
+
+        <!-- Foot Right -->
+        <circle cx="66" cy="90" r="10" fill="url(#panda-dark-limb)" />
+
+        <!-- Body -->
+        <circle cx="50" cy="72" r="24.5" fill="url(#panda-white-body)" stroke="#e0a899" stroke-width="0.75" filter="url(#shadow-body)" />
+        <!-- Body Glossy Highlight -->
+        <ellipse cx="44" cy="62" rx="10" ry="6" fill="#ffffff" opacity="0.35" transform="rotate(-15 44 62)" />
+
+        <!-- Arm Left -->
+        <ellipse cx="24" cy="68" rx="8.5" ry="12.5" fill="url(#panda-dark-limb)" transform="rotate(25 24 68)" filter="url(#shadow-body)" />
+
+        <!-- Arm Right -->
+        <ellipse cx="76" cy="68" rx="8.5" ry="12.5" fill="url(#panda-dark-limb)" transform="rotate(-25 76 68)" filter="url(#shadow-body)" />
+
+        <!-- Head -->
+        <circle cx="50" cy="40" r="22.5" fill="url(#panda-white-head)" stroke="#e0a899" stroke-width="0.75" filter="url(#shadow-head)" />
+        <!-- Head Glossy Highlight -->
+        <ellipse cx="44" cy="30" rx="9" ry="5.5" fill="#ffffff" opacity="0.4" transform="rotate(-15 44 30)" />
+
+        <!-- Eye Patch Left -->
+        <ellipse cx="42" cy="38" rx="6.5" ry="8.5" fill="url(#panda-dark-patch)" transform="rotate(-15 42 38)" />
+        <circle cx="43.5" cy="36.5" r="2.5" fill="#ffffff" />
+        <circle cx="44.5" cy="35.5" r="1" fill="#ffffff" />
+
+        <!-- Eye Patch Right -->
+        <ellipse cx="58" cy="38" rx="6.5" ry="8.5" fill="url(#panda-dark-patch)" transform="rotate(15 58 38)" />
+        <circle cx="56.5" cy="36.5" r="2.5" fill="#ffffff" />
+        <circle cx="55.5" cy="35.5" r="1" fill="#ffffff" />
+
+        <!-- Cheek Blush -->
+        <ellipse cx="34" cy="44" rx="4.5" ry="3.5" fill="url(#panda-pink-blush)" />
+        <ellipse cx="66" cy="44" rx="4.5" ry="3.5" fill="url(#panda-pink-blush)" />
+
+        <!-- Snout -->
+        <ellipse cx="50" cy="44" rx="6.5" ry="5" fill="url(#panda-white-head)" stroke="#e0a899" stroke-width="0.5" />
+
+        <!-- Nose -->
+        <ellipse cx="50" cy="42.5" rx="3.5" ry="2.2" fill="url(#panda-dark-patch)" filter="url(#shadow-nose)" />
+
+        <!-- Mouth -->
+        <path d="M 46.5 45 Q 50 47.5 53.5 45" stroke="#3d2c25" stroke-width="1.8" fill="none" stroke-linecap="round" />
+      </svg>
+      <!-- Conversation Balloon -->
+      <div class="panda-bubble" id="panda-bubble">Hi! 🌸</div>
+    </div>
+  </div>
+
+  <!-- Panda Chat Window -->
+  <div class="panda-chat-window" id="panda-chat-window" style="display: none;">
+    <div class="chat-header">
+      <div class="chat-header-title">
+        <span>🐼 Pandy's Study Room</span>
+      </div>
+      <div class="chat-header-actions">
+        <button class="chat-voice-toggle" id="chat-voice-toggle" title="Toggle Panda voice">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M11 5L6 9H2V15H6L11 19V5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M19.07 4.93C20.9447 6.80527 21.9979 9.34835 21.9979 12C21.9979 14.6516 20.9447 17.1947 19.07 19.07" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M15.54 8.46C16.4774 9.39763 17.004 10.6692 17.004 11.995C17.004 13.3208 16.4774 14.5924 15.54 15.53" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="chat-close-btn" id="chat-close-btn" title="Close Chat">×</button>
+      </div>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-bubble model">
+        Hello! I'm Pandy, your 3D study buddy. 🐼🌸 Highlight any text on the page and click <b>Explain with Panda</b> to ask me, or just chat with me here!
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <button id="chat-mic-btn" class="chat-mic-btn" title="Hold to speak to Pandy">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M12 1C10.34 1 9 2.34 9 4V12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12V4C15 2.34 13.66 1 12 1Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M19 10V12C19 15.87 15.87 19 12 19C8.13 19 5 15.87 5 12V10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="8" y1="23" x2="16" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <input type="text" id="chat-input" placeholder="Ask Pandy anything... 🌸" autocomplete="off">
+      <button id="chat-send-btn" class="chat-send-btn">Send</button>
+    </div>
+  </div>
+
+  <!-- Selection Tooltip Popover -->
+  <button class="selection-tooltip-btn" id="selection-tooltip-btn" style="display: none;" title="Ask Pandy to explain this concept">
+    <span>🐼 Explain with Panda</span>
+  </button>
+
+  <!-- History Sidebar Drawer -->
+  <div class="history-sidebar" id="history-sidebar">
+    <div class="history-header">
+      <div class="history-title-wrapper">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Saved Notes</span>
+      </div>
+      <button class="close-sidebar-btn" id="close-sidebar-btn" title="Close History">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="history-list" id="history-list">
+      <!-- Loaded past notes dynamically -->
+      <div class="history-empty">
+        <p>No saved notes yet! 🌸</p>
+        <p class="history-empty-subtitle">Generate some notes to see them here.</p>
+      </div>
+    </div>
+    <div class="history-footer">
+      <button class="clear-history-btn" id="clear-history-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+        Clear All History
+      </button>
+    </div>
+  </div>
+  <div class="history-overlay" id="history-overlay"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-top">
+        <button class="history-toggle-btn" id="history-toggle-btn" title="View Saved Notes">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>History</span>
+        </button>
+      </div>
+      <div class="logo">
+        <div class="logo-icon">
+          <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <!-- 3D drop shadow for the paper sheet -->
+              <filter id="paper-shadow" x="-15%" y="-15%" width="130%" height="135%">
+                <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#4a373b" flood-opacity="0.15" />
+              </filter>
+              <!-- Shadow cast by the fold -->
+              <filter id="fold-shadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="-2" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.25" />
+              </filter>
+              <!-- Paper surface gradient -->
+              <linearGradient id="paper-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffffff" />
+                <stop offset="80%" stop-color="#fff5f7" />
+                <stop offset="100%" stop-color="#ffeef1" />
+              </linearGradient>
+              <!-- Folded corner gradient -->
+              <linearGradient id="fold-grad" x1="0" y1="1" x2="1" y2="0">
+                <stop offset="0%" stop-color="#ffb3c6" />
+                <stop offset="50%" stop-color="#ff85a1" />
+                <stop offset="100%" stop-color="#ffccd5" />
+              </linearGradient>
+            </defs>
+
+            <!-- Base Paper Sheet with realistic 3D shadow -->
+            <path d="M 25 10 H 65 L 85 30 V 85 C 85 89.4 81.4 93 77 93 H 25 C 20.6 93 17 89.4 17 85 V 18 C 17 13.6 20.6 10 25 10 Z" 
+                  fill="url(#paper-grad)" 
+                  stroke="#ffb3c6" 
+                  stroke-width="2.5" 
+                  filter="url(#paper-shadow)" />
+
+            <!-- Shadow behind the folded corner to make it look curled/realistic -->
+            <path d="M 65 10 L 65 30 H 85 Z" fill="#4a373b" opacity="0.12" filter="url(#fold-shadow)" />
+
+            <!-- Folded Corner Sheet -->
+            <path d="M 65 10 L 85 30 H 68 C 66.3 30 65 28.7 65 27 Z" 
+                  fill="url(#fold-grad)" 
+                  stroke="#ff85a1" 
+                  stroke-width="1.5" />
+
+            <!-- Realistic writing lines (ruled paper lines) -->
+            <line x1="28" y1="42" x2="74" y2="42" stroke="#ffccd5" stroke-width="3" stroke-linecap="round" />
+            <line x1="28" y1="56" x2="74" y2="56" stroke="#ffccd5" stroke-width="3" stroke-linecap="round" />
+            <line x1="28" y1="70" x2="74" y2="70" stroke="#ffccd5" stroke-width="3" stroke-linecap="round" />
+
+            <!-- A little cute yellow star badge or checkmark -->
+            <path d="M 66 50 L 70 58 L 78 59 L 72 65 L 74 73 L 66 69 L 58 73 L 60 65 L 54 59 L 62 58 Z" 
+                  fill="#ffd166" 
+                  stroke="#f4a261" 
+                  stroke-width="1.5" 
+                  stroke-linejoin="round" />
+          </svg>
+        </div>
+        <span class="logo-text">Noties</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+      <!-- Input Section -->
+      <section class="input-section" id="input-section">
+        <div class="glass-card input-card">
+          <h1 class="card-title">
+            <span class="title-gradient">Paste a YouTube Link</span>
+          </h1>
+          <p class="card-subtitle">Paste a YouTube video link — we'll generate comprehensive study notes 🧸</p>
+
+          <div class="input-wrapper">
+            <div class="input-group">
+              <div class="input-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M22.54 6.42C22.4212 5.94541 22.1793 5.51057 21.8387 5.15941C21.498 4.80824 21.0708 4.55318 20.6 4.42C18.88 4 12 4 12 4C12 4 5.12 4 3.4 4.46C2.92925 4.59318 2.50198 4.84824 2.16135 5.19941C1.82072 5.55057 1.57879 5.98541 1.46 6.46C1.14522 8.20556 0.991258 9.97631 1.00001 11.75C0.988802 13.537 1.14277 15.3213 1.46 17.08C1.59097 17.5398 1.83831 17.9581 2.17816 18.2945C2.51802 18.6308 2.9389 18.8738 3.4 19C5.12 19.46 12 19.46 12 19.46C12 19.46 18.88 19.46 20.6 19C21.0708 18.8668 21.498 18.6118 21.8387 18.2606C22.1793 17.9094 22.4212 17.4746 22.54 17C22.8524 15.2676 23.0063 13.5103 23 11.75C23.0113 9.96295 22.8573 8.1787 22.54 6.42Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M9.75 15.02L15.5 11.75L9.75 8.48V15.02Z" fill="currentColor"/>
+                </svg>
+              </div>
+              <input 
+                type="url" 
+                id="youtube-url" 
+                class="url-input" 
+                placeholder="Paste YouTube video URL..." 
+                autocomplete="off"
+                spellcheck="false"
+              >
+              <button id="paste-btn" class="paste-btn" title="Paste from clipboard">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M16 4H18C18.5304 4 19.0391 4.21071 19.4142 4.58579C19.7893 4.96086 20 5.46957 20 6V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V6C4 5.46957 4.21071 4.96086 4.58579 4.58579C4.96086 4.21071 5.46957 4 6 4H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <rect x="8" y="2" width="8" height="4" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+              </button>
+            </div>
+            <button id="generate-btn" class="generate-btn">
+              <span class="btn-content">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
+                </svg>
+                <span>Generate Notes</span>
+              </span>
+              <span class="btn-shimmer"></span>
+            </button>
+          </div>
+
+          <!-- Video Preview -->
+          <div class="video-preview" id="video-preview" style="display: none;">
+            <img id="video-thumbnail" src="" alt="Video thumbnail" class="thumbnail">
+            <div class="video-info">
+              <div class="video-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M22.54 6.42C22.4212 5.94541 22.1793 5.51057 21.8387 5.15941C21.498 4.80824 21.0708 4.55318 20.6 4.42C18.88 4 12 4 12 4C12 4 5.12 4 3.4 4.46C2.92925 4.59318 2.50198 4.84824 2.16135 5.19941C1.82072 5.55057 1.57879 5.98541 1.46 6.46C1.14522 8.20556 0.991258 9.97631 1.00001 11.75C0.988802 13.537 1.14277 15.3213 1.46 17.08C1.59097 17.5398 1.83831 17.9581 2.17816 18.2945C2.51802 18.6308 2.9389 18.8738 3.4 19C5.12 19.46 12 19.46 12 19.46C12 19.46 18.88 19.46 20.6 19C21.0708 18.8668 21.498 18.6118 21.8387 18.2606C22.1793 17.9094 22.4212 17.4746 22.54 17C22.8524 15.2676 23.0063 13.5103 23 11.75C23.0113 9.96295 22.8573 8.1787 22.54 6.42Z" fill="#FF0033"/>
+                  <path d="M9.75 15.02L15.5 11.75L9.75 8.48V15.02Z" fill="white"/>
+                </svg>
+                <span>YouTube Video Detected</span>
+              </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Loading Section -->
+      <section class="loading-section" id="loading-section" style="display: none;">
+        <div class="glass-card loading-card">
+          <div class="loading-animation">
+            <div class="loader-ring">
+              <div class="ring-segment"></div>
+              <div class="ring-segment"></div>
+              <div class="ring-segment"></div>
+            </div>
+            <div class="loader-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="url(#loadGrad2)"/>
+                <defs>
+                  <linearGradient id="loadGrad2" x1="2" y1="2" x2="22" y2="22">
+                    <stop stop-color="#ff85a1"/>
+                    <stop offset="1" stop-color="#ffb3c6"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          </div>
+          <h2 class="loading-title" id="loading-title">Generating Your Notes</h2>
+          <div class="loading-steps">
+            <div class="step active" id="step-1">
+              <div class="step-dot"></div>
+              <span>Extracting video transcript...</span>
+            </div>
+            <div class="step" id="step-2">
+              <div class="step-dot"></div>
+              <span>Analyzing content with AI...</span>
+            </div>
+            <div class="step" id="step-3">
+              <div class="step-dot"></div>
+              <span>Crafting detailed notes...</span>
+            </div>
+          </div>
+          <!-- Progress bar for long videos / playlists -->
+          <div class="progress-bar-container" id="progress-bar-container" style="display: none;">
+            <div class="progress-bar">
+              <div class="progress-bar-fill" id="progress-bar-fill"></div>
+            </div>
+            <p class="progress-text" id="progress-text">Processing...</p>
+          </div>
+          <p class="loading-hint" id="loading-hint">This may take 30–60 seconds depending on the video length</p>
+        </div>
+      </section>
+
+      <!-- Error Section -->
+      <section class="error-section" id="error-section" style="display: none;">
+        <div class="glass-card error-card">
+          <div class="error-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="#ff85a1" stroke-width="1.5"/>
+              <path d="M15 9L9 15M9 9L15 15" stroke="#ff85a1" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h2 class="error-title">Oops! Something went wrong</h2>
+          <p class="error-message" id="error-message">An unexpected error occurred.</p>
+          <button class="try-again-btn" id="try-again-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M3.51 15C4.15839 16.8404 5.38734 18.4202 7.01166 19.5014C8.63598 20.5826 10.5677 21.1066 12.5157 20.9945C14.4637 20.8824 16.3226 20.1402 17.8121 18.8798C19.3017 17.6193 20.3413 15.9089 20.7742 14.0064C21.2072 12.1039 21.0101 10.1134 20.2126 8.33119C19.4152 6.54899 18.0605 5.06711 16.3528 4.1124C14.6451 3.15768 12.6769 2.78321 10.7447 3.04495C8.81245 3.30668 7.02091 4.19063 5.64 5.56L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Try Again
+          </button>
+        </div>
+      </section>
+
+      <!-- Notes Output Section -->
+      <section class="notes-section" id="notes-section" style="display: none;">
+        <div class="notes-toolbar">
+          <div class="notes-stats">
+            <span class="stat-badge" id="transcript-count">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+              <span>—</span>
+            </span>
+          </div>
+          <div class="notes-tabs">
+            <button class="tab-btn active" id="tab-detailed" title="View Detailed Notes">
+              <span>📚 Detailed Notes</span>
+            </button>
+            <button class="tab-btn" id="tab-revision" title="View Quick Revision Notes">
+              <span>⚡ Quick Revision</span>
+            </button>
+          </div>
+          <div class="notes-actions">
+            <button class="action-btn" id="edit-btn" title="Edit notes">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Edit</span>
+            </button>
+            <button class="action-btn" id="copy-btn" title="Copy notes to clipboard">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M5 15H4C2.895 15 2 14.105 2 13V4C2 2.895 2.895 2 4 2H13C14.105 2 15 2.895 15 4V5" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+              <span>Copy</span>
+            </button>
+            <button class="action-btn" id="download-btn" title="Download notes as PDF">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M21 15V19C21 20.1 20.1 21 19 21H5C3.9 21 3 20.1 3 19V15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <span>PDF</span>
+            </button>
+            <button class="action-btn" id="new-btn" title="Generate notes for a new video">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span>New</span>
+            </button>
+          </div>
+        </div>
+        <div class="glass-card notes-card">
+          <div class="notes-timestamp" id="notes-timestamp" style="display: none;">
+            <span class="timestamp-generated" id="timestamp-generated"></span>
+            <span class="timestamp-edited" id="timestamp-edited"></span>
+          </div>
+          <div class="notes-content" id="notes-content">
+            <!-- Notes will be rendered here -->
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Noties<span class="inline-logo-svg"><svg width="18" height="18" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; vertical-align: middle; margin-left: 4px; margin-right: 4px;"><defs><linearGradient id="inline-paper-grad-footer" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffffff" /><stop offset="80%" stop-color="#fff5f7" /><stop offset="100%" stop-color="#ffeef1" /></linearGradient><linearGradient id="inline-fold-grad-footer" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#ffb3c6" /><stop offset="50%" stop-color="#ff85a1" /><stop offset="100%" stop-color="#ffccd5" /></linearGradient><filter id="inline-paper-shadow-footer" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#4a373b" flood-opacity="0.2" /></filter></defs><path d="M 25 10 H 65 L 85 30 V 85 C 85 89.4 81.4 93 77 93 H 25 C 20.6 93 17 89.4 17 85 V 18 C 17 13.6 20.6 10 25 10 Z" fill="url(#inline-paper-grad-footer)" stroke="#ffb3c6" stroke-width="3" filter="url(#inline-paper-shadow-footer)" /><path d="M 65 10 L 65 30 H 85 Z" fill="#4a373b" opacity="0.15" /><path d="M 65 10 L 85 30 H 68 C 66.3 30 65 28.7 65 27 Z" fill="url(#inline-fold-grad-footer)" stroke="#ff85a1" stroke-width="2" /><path d="M 45 75 L 75 45 L 80 50 L 50 80 Z" fill="#ffd166" stroke="#f4a261" stroke-width="1.5" /><path d="M 75 45 L 80 50 L 83 47 L 78 42 Z" fill="#ff85a1" /><path d="M 45 75 L 40 80 L 45 79 Z" fill="#2d1f21" /></svg></span> — Paste. Generate. Learn. 🌸</p>
+    </footer>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js" integrity="sha512-MpDFIChbcXl2QgipQrt1VcPHMldRILetapBEoYPSMHBqtPdJFdRDDH/BOgQxKMnCDFahKBBN3KrCDxTxBW5dYA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="script.js"></script>
+</body>
+</html>

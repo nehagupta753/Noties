@@ -1,0 +1,25 @@
+# Environment variables and secrets
+.env
+.env.local
+*.env
+
+# Maven build directory
+target/
+*.jar
+*.war
+*.ear
+
+# IDE and Editor files
+.idea/
+*.iml
+.vscode/
+*.class
+.project
+.classpath
+.settings/
+
+# OS and system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log

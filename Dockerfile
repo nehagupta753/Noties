@@ -1,26 +1,25 @@
-# Build stage
-FROM eclipse-temurin:17-jdk-alpine AS build
+# Build stage using official Maven image (no wrapper dependency needed)
+FROM maven:3.9.6-eclipse-temurin-17-alpine AS build
 WORKDIR /app
 
-# Copy maven wrapper and project descriptor
-COPY .mvn .mvn
-COPY mvnw pom.xml ./
-RUN chmod +x ./mvnw
+# Copy pom.xml and download dependencies
+COPY pom.xml ./
+RUN mvn dependency:go-offline -B
 
-# Copy source code and package
+# Copy source code and build package
 COPY src ./src
-RUN ./mvnw clean package -DskipTests
+RUN mvn clean package -DskipTests -B
 
 # Run stage
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Copy the built jar from the build stage
+# Copy built jar from build stage
 COPY --from=build /app/target/youtube-notes-generator-1.0.0.jar app.jar
 
-# Render exposes PORT env var
+# Port configuration
 ENV PORT=3000
 EXPOSE 3000
 
-# Start the Spring Boot application
+# Run Spring Boot application
 ENTRYPOINT ["java", "-jar", "app.jar"]

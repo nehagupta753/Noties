@@ -64,7 +64,17 @@ public class NotesController {
                     transcript = result.text();
                     segmentCount = result.segmentCount();
                 } catch (RuntimeException e) {
-                    sendError(emitter, "Could not fetch transcript. The video may not have captions or may be private.");
+                    String detail = e.getMessage() != null ? e.getMessage() : "";
+                    String userMsg = "Could not fetch transcript. ";
+                    if (detail.contains("No transcripts available") || detail.contains("No caption tracks")) {
+                        userMsg += "This video does not have captions/subtitles available.";
+                    } else if (detail.contains("private") || detail.contains("unavailable")) {
+                        userMsg += "The video may be private or unavailable.";
+                    } else {
+                        userMsg += "The video may not have captions or may be private. Please try again.";
+                    }
+                    log.warn("Transcript fetch failed for {}: {}", videoId, detail);
+                    sendError(emitter, userMsg);
                     return;
                 }
 

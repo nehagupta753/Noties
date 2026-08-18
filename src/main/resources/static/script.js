@@ -453,16 +453,49 @@ tabRevision.addEventListener('click', () => {
 //  History feature (localStorage)
 // ----------------------------------------
 
+const MAX_HISTORY_ITEMS = 20;
+
+function estimateStorageSize() {
+  const history = localStorage.getItem('notes_history') || '';
+  return new Blob([history]).size;
+}
+
 function getSavedHistory() {
   const history = localStorage.getItem('notes_history');
-  return history ? JSON.parse(history) : [];
+  if (!history) return [];
+  try {
+    return JSON.parse(history);
+  } catch (err) {
+    console.error('Failed to parse history, clearing corrupted data', err);
+    localStorage.removeItem('notes_history');
+    return [];
+  }
 }
 
 function saveHistoryItem(item) {
   const history = getSavedHistory();
-  const filtered = history.filter((i) => i.videoId !== item.videoId);
+  let filtered = history.filter((i) => i.videoId !== item.videoId);
   filtered.unshift(item);
-  localStorage.setItem('notes_history', JSON.stringify(filtered));
+  filtered = filtered.slice(0, MAX_HISTORY_ITEMS);
+
+  try {
+    localStorage.setItem('notes_history', JSON.stringify(filtered));
+  } catch (err) {
+    try {
+      const metadataOnly = filtered.map((i) => ({
+        videoId: i.videoId,
+        title: i.title,
+        date: i.date,
+        transcriptLength: i.transcriptLength,
+        generatedAt: i.generatedAt,
+        lastEditedAt: i.lastEditedAt
+      }));
+      localStorage.setItem('notes_history', JSON.stringify(metadataOnly));
+      showToast('Storage full — saving metadata only');
+    } catch (err2) {
+      showToast('Could not save to history — storage full');
+    }
+  }
   renderHistoryList();
 }
 

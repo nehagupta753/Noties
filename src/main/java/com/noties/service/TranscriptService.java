@@ -25,7 +25,7 @@ public class TranscriptService {
     private static final ObjectMapper mapper = new ObjectMapper();
 
     private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
+            .connectTimeout(Duration.ofSeconds(30))
             .build();
 
     // YouTube URL matching patterns
@@ -82,9 +82,100 @@ public class TranscriptService {
             return new TranscriptResult(sb.toString().trim(), segmentCount);
 
         } catch (Exception e) {
-            log.error("Failed to fetch transcript for {}: {}", videoId, e.getMessage());
-            throw new RuntimeException("Could not retrieve video captions/subtitles", e);
+            log.warn("Primary transcript fetch failed for {}: {}. Attempting fallback...", videoId, e.getMessage());
+            try {
+                return fetchTranscriptFallback(videoId);
+            } catch (Exception fallbackEx) {
+                log.error("Fallback fetch also failed for {}: {}", videoId, fallbackEx.getMessage());
+                throw new RuntimeException("Could not retrieve video captions/subtitles", e);
+            }
         }
+    }
+
+    private TranscriptResult fetchTranscriptFallback(String videoId) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://www.youtube.com/watch?v=" + videoId))
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .GET()
+                .build();
+
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        String html = response.body();
+
+        int captionTracksIndex = html.indexOf("\"captionTracks\":");
+        if (captionTracksIndex == -1) {
+            throw new RuntimeException("No caption tracks found in page HTML");
+        }
+
+        String jsonSubstring = html.substring(captionTracksIndex + "\"captionTracks\":".length());
+        int arrayEnd = jsonSubstring.indexOf("]");
+        if (arrayEnd == -1) {
+            throw new RuntimeException("Could not parse caption tracks array");
+        }
+        String captionTracksJson = jsonSubstring.substring(0, arrayEnd + 1);
+        JsonNode tracks = mapper.readTree(captionTracksJson);
+
+        String captionUrl = null;
+        for (JsonNode track : tracks) {
+            if (track.has("languageCode") && "en".equals(track.get("languageCode").asText())) {
+                captionUrl = track.get("baseUrl").asText();
+                break;
+            }
+        }
+
+        if (captionUrl == null && tracks.size() > 0) {
+            captionUrl = tracks.get(0).get("baseUrl").asText();
+        }
+
+        if (captionUrl == null) {
+            throw new RuntimeException("No valid caption URL found");
+        }
+
+        HttpRequest xmlRequest = HttpRequest.newBuilder()
+                .uri(URI.create(captionUrl))
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .GET()
+                .build();
+
+        HttpResponse<String> xmlResponse = http.send(xmlRequest, HttpResponse.BodyHandlers.ofString());
+        String xml = xmlResponse.body();
+
+        java.util.regex.Matcher matcher = Pattern.compile("<text\\s+start=\"([^\"]+)\"[^>]*>(.*?)</text>").matcher(xml);
+        StringBuilder sb = new StringBuilder();
+        int segmentCount = 0;
+
+        while (matcher.find()) {
+            double start = Double.parseDouble(matcher.group(1));
+            String text = matcher.group(2)
+                    .replace("&amp;", "&")
+                    .replace("&lt;", "<")
+                    .replace("&gt;", ">")
+                    .replace("&quot;", "\"")
+                    .replace("&#39;", "'");
+            
+            java.util.regex.Matcher entityMatcher = Pattern.compile("&#(\\d+);").matcher(text);
+            StringBuilder unescapedText = new StringBuilder();
+            while (entityMatcher.find()) {
+                char ch = (char) Integer.parseInt(entityMatcher.group(1));
+                entityMatcher.appendReplacement(unescapedText, String.valueOf(ch));
+            }
+            entityMatcher.appendTail(unescapedText);
+            text = unescapedText.toString();
+
+            int mins = (int) (start / 60);
+            int secs = (int) (start % 60);
+            sb.append(String.format("[%d:%02d] %s\n", mins, secs, text));
+            segmentCount++;
+        }
+
+        if (segmentCount == 0) {
+            throw new RuntimeException("No segments parsed from XML");
+        }
+
+        log.info("Fallback transcript fetched successfully ({} segments)", segmentCount);
+        return new TranscriptResult(sb.toString().trim(), segmentCount);
     }
 
     // ── Fetch Video Title (noembed fallback) ─────────────────────────────

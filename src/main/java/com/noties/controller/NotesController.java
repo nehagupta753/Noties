@@ -59,39 +59,47 @@ public class NotesController {
 
                 String transcript;
                 int segmentCount;
+                boolean directVideoMode = false;
                 try {
                     var result = transcripts.fetchTranscript(videoId);
                     transcript = result.text();
                     segmentCount = result.segmentCount();
                 } catch (RuntimeException e) {
-                    String detail = e.getMessage() != null ? e.getMessage() : "";
-                    String userMsg = "Could not fetch transcript. ";
-                    if (detail.contains("No transcripts available") || detail.contains("No caption tracks")) {
-                        userMsg += "This video does not have captions/subtitles available.";
-                    } else if (detail.contains("private") || detail.contains("unavailable")) {
-                        userMsg += "The video may be private or unavailable.";
-                    } else {
-                        userMsg += "The video may not have captions or may be private. Please try again.";
-                    }
-                    log.warn("Transcript fetch failed for {}: {}", videoId, detail);
-                    sendError(emitter, userMsg);
-                    return;
+                    log.warn("Transcript fetch failed for {}: {}. Switching to direct video mode.", videoId, e.getMessage());
+                    transcript = null;
+                    segmentCount = 0;
+                    directVideoMode = true;
                 }
 
-                sendProgress(emitter, "Transcript extracted!", 15);
+                if (!directVideoMode) {
+                    sendProgress(emitter, "Transcript extracted!", 15);
+                }
 
                 // Fetch title concurrently in the background
                 CompletableFuture<String> titleFuture = CompletableFuture.supplyAsync(
                         () -> transcripts.fetchVideoTitle(videoId), executor
                 );
 
-                int CHUNK_THRESHOLD = 60_000;
-                int CHUNK_SIZE = 50_000;
-
                 String detailedNotes;
                 String revisionNotes;
 
-                if (transcript.length() < CHUNK_THRESHOLD) {
+                int CHUNK_THRESHOLD = 60_000;
+                int CHUNK_SIZE = 50_000;
+
+                if (directVideoMode) {
+                    // Fallback: Let Gemini analyze the video directly (bypasses YouTube IP blocking)
+                    sendProgress(emitter, "Using AI to analyze video directly...", 20);
+                    try {
+                        var notes = gemini.generateNotesFromVideo(videoId);
+                        detailedNotes = notes.getOrDefault("detailed", "");
+                        revisionNotes = notes.getOrDefault("revision", "");
+                        sendProgress(emitter, "Notes generated from video analysis!", 90);
+                    } catch (Exception videoEx) {
+                        log.error("Direct video analysis also failed for {}: {}", videoId, videoEx.getMessage());
+                        sendError(emitter, "Could not fetch transcript or analyze video. The video may be private, have no captions, or be too long. Please try again.");
+                        return;
+                    }
+                } else if (transcript.length() < CHUNK_THRESHOLD) {
                     // Short video: single call generates both detailed notes and revision sheet
                     sendProgress(emitter, "Generating notes with AI...", 30);
                     var notes = gemini.generateNotes(transcript);

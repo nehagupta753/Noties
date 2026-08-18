@@ -82,6 +82,31 @@ public class GeminiService {
         return Map.of("detailed", detailed, "revision", revision);
     }
 
+    // Generate notes directly from YouTube video (used when transcript fetch fails on cloud)
+    public Map<String, String> generateNotesFromVideo(String videoId) {
+        String youtubeUrl = "https://www.youtube.com/watch?v=" + videoId;
+        String prompt = buildVideoNotesPrompt();
+
+        // Build multimodal request with video + text
+        Map<String, Object> videoPart = new HashMap<>();
+        videoPart.put("fileData", Map.of(
+                "mimeType", "video/*",
+                "fileUri", youtubeUrl
+        ));
+        Map<String, Object> textPart = Map.of("text", prompt);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("contents", List.of(Map.of("parts", List.of(videoPart, textPart))));
+        body.put("generationConfig", Map.of("maxOutputTokens", 65536));
+
+        String response = callWithRetry(body, null);
+        String[] parts = response.split("===REVISION_NOTES===");
+        String detailed = parts[0].trim();
+        String revision = parts.length > 1 ? parts[1].trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
+
+        return Map.of("detailed", detailed, "revision", revision);
+    }
+
     // Generate notes for a single chunk of a long video
     public String generateNotesForChunk(String chunk, int chunkIndex, int totalChunks) {
         String prompt = buildChunkNotesPrompt(chunk, chunkIndex, totalChunks);
@@ -374,6 +399,39 @@ public class GeminiService {
                 ---
                 Transcript:
                 """ + transcript;
+    }
+
+    private String buildVideoNotesPrompt() {
+        return """
+                You are a master educator and textbook author creating high-yield, aesthetic study notes for students.
+                You are given a YouTube video. Watch the ENTIRE video carefully and create TWO distinct sections in a SINGLE response.
+                
+                CRITICAL REQUIREMENTS:
+                1. FULL CHRONOLOGICAL COVERAGE: Cover every concept, formula, mechanism, code snippet, definition, and insight from start to end. Do NOT truncate or rush through later topics.
+                2. RICH FORMATTING & HIERARCHY:
+                   - Use clean markdown `#`, `##`, `###` headers for logical module separation.
+                   - Use bold text for key terms, definitions, and important syntax.
+                   - Use bullet points and numbered lists for readability.
+                   - For tutorials/technical topics: Provide clean, commented, fully explained code blocks or command sequences.
+                   - Include practical comparisons, tables (where applicable), and real-world intuition.
+                   - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
+                3. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the top-level title and content.
+                
+                ---
+                
+                **PART 1: Detailed Study Notes**
+                Write a complete, beautifully structured, thorough textbook-grade reference guide. Every topic must be explained with depth, context, and clear examples.
+                
+                Then write EXACTLY this separator line on its own line:
+                ===REVISION_NOTES===
+                
+                **PART 2: Quick Revision & Exam Cheat Sheet**
+                Create an exhaustive, high-yield summary designed for rapid review:
+                - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept, chronologically.
+                - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions.
+                - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas.
+                - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`).
+                """;
     }
 
     private String buildChunkNotesPrompt(String chunk, int chunkIndex, int totalChunks) {

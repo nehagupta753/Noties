@@ -1523,10 +1523,10 @@ body {
     position: fixed;
     inset: auto 0 14px 0;
     margin: 0 auto;
-    width: 84vw;
-    max-width: 320px;
+    width: 92vw;
+    max-width: 340px;
     height: 48vh;
-    max-height: 380px;
+    max-height: 420px;
     border-radius: var(--radius-lg);
     border: 2.5px solid var(--accent-pink-light);
     border-bottom: 5px solid var(--accent-pink-light);
@@ -1541,23 +1541,23 @@ body {
   }
 
   .chat-header {
-    padding: 8px 12px;
+    padding: 8px 10px;
   }
 
   .chat-header-title {
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .chat-close-btn {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     background: #ffe5ec;
     border: 1.5px solid var(--accent-pink-light);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 16px;
     color: var(--accent-pink-dark);
     flex-shrink: 0;
   }
@@ -1568,13 +1568,24 @@ body {
   }
 
   .chat-input-area {
-    padding: 8px 10px;
-    gap: 6px;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .chat-mic-btn {
+    width: 32px;
+    height: 32px;
   }
 
   #chat-input {
-    padding: 6px 12px;
-    font-size: 12px;
+    padding: 6px 10px;
+    font-size: 11px;
+    min-width: 0;
+  }
+
+  .chat-send-btn {
+    padding: 5px 10px;
+    font-size: 11px;
   }
 }
 

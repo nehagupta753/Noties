@@ -99,25 +99,31 @@ public class TranscriptService {
 
     // ── Fallback 1: YouTube InnerTube API ──────────────────────────────
 
+    private static final String YT_INNERTUBE_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
+
     private TranscriptResult fetchTranscriptViaInnerTube(String videoId) throws Exception {
-        // Try multiple InnerTube client contexts — each has different blocking thresholds
+        // Try multiple InnerTube client contexts — each has different IP blocking thresholds
+        // Order: IOS (least blocked) → ANDROID → TV_EMBEDDED → WEB → MWEB
         String[][] clients = {
-                // { clientName, clientVersion, userAgent }
-                {"WEB", "2.20240530.00.00", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"},
-                {"ANDROID", "19.29.37", "com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip"},
-                {"TVHTML5_SIMPLY_EMBEDDED_PLAYER", "2.0", "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5)"},
+                // { clientName, clientVersion, userAgent, clientNameId }
+                {"IOS", "19.29.1", "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)", "5"},
+                {"ANDROID", "19.29.37", "com.google.android.youtube/19.29.37 (Linux; U; Android 14; en_US) gzip", "3"},
+                {"TVHTML5_SIMPLY_EMBEDDED_PLAYER", "2.0", "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 Chrome/85.0.4183.93 Safari/537.36", "85"},
+                {"WEB", "2.20240530.00.00", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36", "1"},
+                {"MWEB", "2.20240530.00.00", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36", "2"},
         };
 
         Exception lastError = null;
 
         for (String[] client : clients) {
             try {
-                String captionUrl = getCaptionUrlViaInnerTube(videoId, client[0], client[1], client[2]);
+                log.info("Trying InnerTube client {} for video {}", client[0], videoId);
+                String captionUrl = getCaptionUrlViaInnerTube(videoId, client[0], client[1], client[2], client[3]);
                 if (captionUrl != null) {
                     return fetchAndParseCaptionXml(captionUrl);
                 }
             } catch (Exception ex) {
-                log.debug("InnerTube client {} failed for {}: {}", client[0], videoId, ex.getMessage());
+                log.warn("InnerTube client {} failed for {}: {}", client[0], videoId, ex.getMessage());
                 lastError = ex;
             }
         }
@@ -125,13 +131,16 @@ public class TranscriptService {
         throw lastError != null ? lastError : new RuntimeException("All InnerTube clients failed");
     }
 
-    private String getCaptionUrlViaInnerTube(String videoId, String clientName, String clientVersion, String userAgent) throws Exception {
-        // Build the InnerTube player request payload
-        String androidFields = clientName.equals("ANDROID")
-                ? ", \"androidSdkVersion\": 34, \"osName\": \"Android\", \"osVersion\": \"14\", \"platform\": \"MOBILE\""
-                : "";
+    private String getCaptionUrlViaInnerTube(String videoId, String clientName, String clientVersion, String userAgent, String clientNameId) throws Exception {
+        // Build client-specific fields
+        String extraClientFields = "";
+        if (clientName.equals("ANDROID")) {
+            extraClientFields = ", \"androidSdkVersion\": 34, \"osName\": \"Android\", \"osVersion\": \"14\", \"platform\": \"MOBILE\"";
+        } else if (clientName.equals("IOS")) {
+            extraClientFields = ", \"deviceMake\": \"Apple\", \"deviceModel\": \"iPhone16,2\", \"osName\": \"iOS\", \"osVersion\": \"17.5.1.21F90\", \"platform\": \"MOBILE\"";
+        }
 
-        String embedUrl = clientName.contains("EMBED") || clientName.contains("TV")
+        String thirdParty = (clientName.contains("EMBED") || clientName.contains("TV"))
                 ? ", \"thirdParty\": { \"embedUrl\": \"https://www.youtube.com\" }"
                 : "";
 
@@ -147,14 +156,16 @@ public class TranscriptService {
                     },
                     "videoId": "%s"
                 }
-                """.formatted(clientName, clientVersion, androidFields, embedUrl, videoId);
+                """.formatted(clientName, clientVersion, extraClientFields, thirdParty, videoId);
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("https://www.youtube.com/youtubei/v1/player?prettyPrint=false"))
+                .uri(URI.create("https://www.youtube.com/youtubei/v1/player?key=" + YT_INNERTUBE_KEY + "&prettyPrint=false"))
                 .header("Content-Type", "application/json")
                 .header("User-Agent", userAgent)
                 .header("Accept-Language", "en-US,en;q=0.9")
-                .header("X-YouTube-Client-Name", clientName.equals("ANDROID") ? "3" : "1")
+                .header("Origin", "https://www.youtube.com")
+                .header("Referer", "https://www.youtube.com/")
+                .header("X-YouTube-Client-Name", clientNameId)
                 .header("X-YouTube-Client-Version", clientVersion)
                 .timeout(Duration.ofSeconds(20))
                 .POST(HttpRequest.BodyPublishers.ofString(payload))
@@ -163,7 +174,7 @@ public class TranscriptService {
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() != 200) {
-            throw new RuntimeException("InnerTube returned HTTP " + response.statusCode());
+            throw new RuntimeException("InnerTube HTTP " + response.statusCode() + " for client " + clientName);
         }
 
         JsonNode root = mapper.readTree(response.body());
@@ -172,7 +183,7 @@ public class TranscriptService {
         JsonNode status = root.path("playabilityStatus").path("status");
         if (!status.isMissingNode() && !"OK".equals(status.asText())) {
             String reason = root.path("playabilityStatus").path("reason").asText("unknown");
-            throw new RuntimeException("Video not playable: " + reason);
+            throw new RuntimeException("Video not playable (" + clientName + "): " + reason);
         }
 
         // Extract caption track URLs
@@ -181,7 +192,7 @@ public class TranscriptService {
                 .path("captionTracks");
 
         if (captionTracks.isMissingNode() || !captionTracks.isArray() || captionTracks.size() == 0) {
-            throw new RuntimeException("No caption tracks in InnerTube response");
+            throw new RuntimeException("No caption tracks in response (" + clientName + ")");
         }
 
         // Prefer English, fallback to first available
@@ -198,7 +209,7 @@ public class TranscriptService {
         }
 
         if (captionUrl.isEmpty()) {
-            throw new RuntimeException("Empty caption URL in InnerTube response");
+            throw new RuntimeException("Empty caption URL (" + clientName + ")");
         }
 
         log.info("Got caption URL via InnerTube client {}", clientName);

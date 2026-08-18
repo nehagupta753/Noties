@@ -727,7 +727,12 @@ async function generateNotes() {
           renderActiveTab();
 
           const segmentLabel = `${event.transcriptLength} transcript segments`;
-          transcriptCount.querySelector('span').textContent = segmentLabel;
+          if (event.transcriptLength > 0) {
+            transcriptCount.querySelector('span').textContent = segmentLabel;
+            transcriptCount.style.display = '';
+          } else {
+            transcriptCount.style.display = 'none';
+          }
 
           const dateStr = new Date().toLocaleDateString(undefined, {
             month: 'short',

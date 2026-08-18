@@ -1006,24 +1006,33 @@ let isAvoiding = false;
 const pandaOffsetX = 20; 
 const pandaOffsetY = 20;
 
-window.addEventListener('mousemove', (e) => {
-  mousePos.x = e.clientX;
-  mousePos.y = e.clientY;
-  
-  // Detect if mouse is hovering over an interactive element
+const setPointerPos = (e) => {
+  if (e.touches && e.touches.length > 0) {
+    mousePos.x = e.touches[0].clientX;
+    mousePos.y = e.touches[0].clientY;
+  } else {
+    mousePos.x = e.clientX;
+    mousePos.y = e.clientY;
+  }
+
   const interactiveEl = e.target.closest('button, input, a, select, textarea, [role="button"], .history-item, .panda-chat-window, .history-sidebar');
   isAvoiding = !!interactiveEl;
-});
+};
+
+window.addEventListener('mousemove', setPointerPos);
+window.addEventListener('touchmove', setPointerPos, { passive: true });
 
 function updatePandaPosition() {
   let targetX, targetY;
+  const isMobile = window.innerWidth <= 768;
+  const size = isMobile ? 85 : 115;
   
-  if (isAvoiding) {
-    // Rest in the bottom-left corner to avoid overlapping interactive buttons
-    targetX = 30;
-    targetY = window.innerHeight - 145;
+  if (isAvoiding || isMobile) {
+    // On mobile or when hovering over inputs, dock gracefully near bottom corner so it doesn't block content
+    targetX = isMobile ? 15 : 30;
+    targetY = window.innerHeight - (size + (isMobile ? 15 : 30));
     pandaMascot.classList.add('avoiding');
-    pandaBodyWrapper.style.pointerEvents = 'none';
+    pandaBodyWrapper.style.pointerEvents = 'auto'; // Keep panda clickable on mobile/docked
   } else {
     targetX = mousePos.x + pandaOffsetX;
     targetY = mousePos.y + pandaOffsetY;
@@ -1045,7 +1054,6 @@ function updatePandaPosition() {
     pandaMascot.querySelector('.panda-svg').classList.remove('facing-left');
   }
   
-  const size = 115;
   const clampedX = Math.min(Math.max(0, pandaPos.x), window.innerWidth - size);
   const clampedY = Math.min(Math.max(0, pandaPos.y), window.innerHeight - size);
 

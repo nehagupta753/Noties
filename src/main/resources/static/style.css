@@ -1521,15 +1521,12 @@ body {
   /* Responsive Mobile Panda Chat Window */
   .panda-chat-window {
     position: fixed;
-    bottom: 14px;
-    left: 14px;
-    right: 14px;
-    top: auto;
-    width: calc(100% - 28px);
-    max-width: 920px;
+    inset: auto 0 14px 0;
     margin: 0 auto;
-    height: 50vh;
-    max-height: 420px;
+    width: 84vw;
+    max-width: 320px;
+    height: 48vh;
+    max-height: 380px;
     border-radius: var(--radius-lg);
     border: 2.5px solid var(--accent-pink-light);
     border-bottom: 5px solid var(--accent-pink-light);
@@ -1623,10 +1620,10 @@ body {
   }
 
   .panda-chat-window {
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    width: calc(100% - 16px);
+    inset: auto 0 8px 0;
+    margin: 0 auto;
+    width: 84vw;
+    max-width: 300px;
   }
 }
 

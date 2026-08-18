@@ -1500,15 +1500,20 @@ body {
 
   /* Responsive Mobile Panda Mascot */
   .panda-mascot {
-    width: 85px;
-    height: 85px;
+    width: 75px;
+    height: 75px;
+    opacity: 1 !important; /* Ensure Panda stays 100% visible on mobile */
+  }
+
+  .panda-mascot.avoiding {
+    opacity: 1 !important; /* Do not fade out on mobile when docked */
   }
 
   .panda-bubble {
-    bottom: 90px;
+    bottom: 80px;
     font-size: 11px;
     padding: 6px 10px;
-    max-width: 180px;
+    max-width: 160px;
     white-space: normal;
     text-align: center;
   }
@@ -1516,27 +1521,37 @@ body {
   /* Responsive Mobile Panda Chat Window */
   .panda-chat-window {
     position: fixed;
-    inset: auto 0 0 0;
-    width: 100%;
-    height: 80vh;
-    max-height: 550px;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    width: calc(100% - 24px);
+    height: 60vh;
+    max-height: 480px;
+    border-radius: var(--radius-lg);
     border: 2.5px solid var(--accent-pink-light);
-    border-bottom: none;
-    box-shadow: 0 -8px 30px rgba(255, 182, 193, 0.35);
+    border-bottom: 5px solid var(--accent-pink-light);
+    box-shadow: 0 8px 30px rgba(255, 182, 193, 0.4);
     z-index: 1005;
   }
 
   .chat-header {
-    padding: 12px 16px;
+    padding: 10px 14px;
   }
 
   .chat-messages {
-    padding: 12px;
+    padding: 10px;
+    gap: 8px;
   }
 
   .chat-input-area {
-    padding: 8px 12px;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  #chat-input {
+    padding: 6px 12px;
+    font-size: 12px;
   }
 }
 

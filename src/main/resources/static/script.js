@@ -1028,10 +1028,14 @@ function updatePandaPosition() {
   const size = isMobile ? 85 : 115;
   
   if (isAvoiding || isMobile) {
-    // On mobile or when hovering over inputs, dock gracefully near bottom corner so it doesn't block content
-    targetX = isMobile ? 15 : 30;
-    targetY = window.innerHeight - (size + (isMobile ? 15 : 30));
-    pandaMascot.classList.add('avoiding');
+    // On mobile, dock cleanly near bottom corner without fading out or going offscreen
+    targetX = isMobile ? 12 : 30;
+    targetY = window.innerHeight - (size + (isMobile ? 12 : 30));
+    if (!isMobile) {
+      pandaMascot.classList.add('avoiding');
+    } else {
+      pandaMascot.classList.remove('avoiding');
+    }
     pandaBodyWrapper.style.pointerEvents = 'auto'; // Keep panda clickable on mobile/docked
   } else {
     targetX = mousePos.x + pandaOffsetX;

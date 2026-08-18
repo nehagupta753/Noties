@@ -82,21 +82,139 @@ public class TranscriptService {
             return new TranscriptResult(sb.toString().trim(), segmentCount);
 
         } catch (Exception e) {
-            log.warn("Primary transcript fetch failed for {}: {}. Attempting fallback...", videoId, e.getMessage());
+            log.warn("Primary transcript fetch failed for {}: {}. Trying InnerTube fallback...", videoId, e.getMessage());
             try {
-                return fetchTranscriptFallback(videoId);
-            } catch (Exception fallbackEx) {
-                log.error("Fallback fetch also failed for {}: {}", videoId, fallbackEx.getMessage());
-                throw new RuntimeException("Could not retrieve video captions/subtitles", e);
+                return fetchTranscriptViaInnerTube(videoId);
+            } catch (Exception fallback1) {
+                log.warn("InnerTube fallback failed for {}: {}. Trying page scrape fallback...", videoId, fallback1.getMessage());
+                try {
+                    return fetchTranscriptViaPageScrape(videoId);
+                } catch (Exception fallback2) {
+                    log.error("All transcript fetch methods failed for {}", videoId);
+                    throw new RuntimeException("Could not retrieve video captions/subtitles", e);
+                }
             }
         }
     }
 
-    private TranscriptResult fetchTranscriptFallback(String videoId) throws Exception {
+    // ── Fallback 1: YouTube InnerTube API ──────────────────────────────
+
+    private TranscriptResult fetchTranscriptViaInnerTube(String videoId) throws Exception {
+        // Try multiple InnerTube client contexts — each has different blocking thresholds
+        String[][] clients = {
+                // { clientName, clientVersion, userAgent }
+                {"WEB", "2.20240530.00.00", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"},
+                {"ANDROID", "19.29.37", "com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip"},
+                {"TVHTML5_SIMPLY_EMBEDDED_PLAYER", "2.0", "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5)"},
+        };
+
+        Exception lastError = null;
+
+        for (String[] client : clients) {
+            try {
+                String captionUrl = getCaptionUrlViaInnerTube(videoId, client[0], client[1], client[2]);
+                if (captionUrl != null) {
+                    return fetchAndParseCaptionXml(captionUrl);
+                }
+            } catch (Exception ex) {
+                log.debug("InnerTube client {} failed for {}: {}", client[0], videoId, ex.getMessage());
+                lastError = ex;
+            }
+        }
+
+        throw lastError != null ? lastError : new RuntimeException("All InnerTube clients failed");
+    }
+
+    private String getCaptionUrlViaInnerTube(String videoId, String clientName, String clientVersion, String userAgent) throws Exception {
+        // Build the InnerTube player request payload
+        String androidFields = clientName.equals("ANDROID")
+                ? ", \"androidSdkVersion\": 34, \"osName\": \"Android\", \"osVersion\": \"14\", \"platform\": \"MOBILE\""
+                : "";
+
+        String embedUrl = clientName.contains("EMBED") || clientName.contains("TV")
+                ? ", \"thirdParty\": { \"embedUrl\": \"https://www.youtube.com\" }"
+                : "";
+
+        String payload = """
+                {
+                    "context": {
+                        "client": {
+                            "clientName": "%s",
+                            "clientVersion": "%s",
+                            "hl": "en",
+                            "gl": "US"%s
+                        }%s
+                    },
+                    "videoId": "%s"
+                }
+                """.formatted(clientName, clientVersion, androidFields, embedUrl, videoId);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://www.youtube.com/youtubei/v1/player?prettyPrint=false"))
+                .header("Content-Type", "application/json")
+                .header("User-Agent", userAgent)
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("X-YouTube-Client-Name", clientName.equals("ANDROID") ? "3" : "1")
+                .header("X-YouTube-Client-Version", clientVersion)
+                .timeout(Duration.ofSeconds(20))
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build();
+
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("InnerTube returned HTTP " + response.statusCode());
+        }
+
+        JsonNode root = mapper.readTree(response.body());
+
+        // Check for playability errors
+        JsonNode status = root.path("playabilityStatus").path("status");
+        if (!status.isMissingNode() && !"OK".equals(status.asText())) {
+            String reason = root.path("playabilityStatus").path("reason").asText("unknown");
+            throw new RuntimeException("Video not playable: " + reason);
+        }
+
+        // Extract caption track URLs
+        JsonNode captionTracks = root.path("captions")
+                .path("playerCaptionsTracklistRenderer")
+                .path("captionTracks");
+
+        if (captionTracks.isMissingNode() || !captionTracks.isArray() || captionTracks.size() == 0) {
+            throw new RuntimeException("No caption tracks in InnerTube response");
+        }
+
+        // Prefer English, fallback to first available
+        String captionUrl = null;
+        for (JsonNode track : captionTracks) {
+            String lang = track.path("languageCode").asText("");
+            if (lang.startsWith("en")) {
+                captionUrl = track.path("baseUrl").asText();
+                break;
+            }
+        }
+        if (captionUrl == null) {
+            captionUrl = captionTracks.get(0).path("baseUrl").asText("");
+        }
+
+        if (captionUrl.isEmpty()) {
+            throw new RuntimeException("Empty caption URL in InnerTube response");
+        }
+
+        log.info("Got caption URL via InnerTube client {}", clientName);
+        return captionUrl;
+    }
+
+    // ── Fallback 2: Page scrape (legacy approach) ──────────────────────
+
+    private TranscriptResult fetchTranscriptViaPageScrape(String videoId) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("https://www.youtube.com/watch?v=" + videoId))
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
                 .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Accept", "text/html,application/xhtml+xml")
+                .header("Cookie", "CONSENT=PENDING+987")
+                .timeout(Duration.ofSeconds(20))
                 .GET()
                 .build();
 
@@ -105,7 +223,7 @@ public class TranscriptService {
 
         int captionTracksIndex = html.indexOf("\"captionTracks\":");
         if (captionTracksIndex == -1) {
-            throw new RuntimeException("No caption tracks found in page HTML");
+            throw new RuntimeException("No caption tracks found in page HTML (possible consent page or IP block)");
         }
 
         String jsonSubstring = html.substring(captionTracksIndex + "\"captionTracks\":".length());
@@ -118,51 +236,43 @@ public class TranscriptService {
 
         String captionUrl = null;
         for (JsonNode track : tracks) {
-            if (track.has("languageCode") && "en".equals(track.get("languageCode").asText())) {
+            if (track.has("languageCode") && track.get("languageCode").asText("").startsWith("en")) {
                 captionUrl = track.get("baseUrl").asText();
                 break;
             }
         }
-
         if (captionUrl == null && tracks.size() > 0) {
             captionUrl = tracks.get(0).get("baseUrl").asText();
         }
-
         if (captionUrl == null) {
             throw new RuntimeException("No valid caption URL found");
         }
 
+        return fetchAndParseCaptionXml(captionUrl);
+    }
+
+    // ── Shared: Fetch and parse caption XML ────────────────────────────
+
+    private TranscriptResult fetchAndParseCaptionXml(String captionUrl) throws Exception {
         HttpRequest xmlRequest = HttpRequest.newBuilder()
                 .uri(URI.create(captionUrl))
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
                 .header("Accept-Language", "en-US,en;q=0.9")
+                .timeout(Duration.ofSeconds(15))
                 .GET()
                 .build();
 
         HttpResponse<String> xmlResponse = http.send(xmlRequest, HttpResponse.BodyHandlers.ofString());
         String xml = xmlResponse.body();
 
-        java.util.regex.Matcher matcher = Pattern.compile("<text\\s+start=\"([^\"]+)\"[^>]*>(.*?)</text>").matcher(xml);
+        java.util.regex.Matcher matcher = Pattern.compile("<text\\s+start=\"([^\"]+)\"[^>]*>(.*?)</text>", Pattern.DOTALL).matcher(xml);
         StringBuilder sb = new StringBuilder();
         int segmentCount = 0;
 
         while (matcher.find()) {
             double start = Double.parseDouble(matcher.group(1));
-            String text = matcher.group(2)
-                    .replace("&amp;", "&")
-                    .replace("&lt;", "<")
-                    .replace("&gt;", ">")
-                    .replace("&quot;", "\"")
-                    .replace("&#39;", "'");
-            
-            java.util.regex.Matcher entityMatcher = Pattern.compile("&#(\\d+);").matcher(text);
-            StringBuilder unescapedText = new StringBuilder();
-            while (entityMatcher.find()) {
-                char ch = (char) Integer.parseInt(entityMatcher.group(1));
-                entityMatcher.appendReplacement(unescapedText, String.valueOf(ch));
-            }
-            entityMatcher.appendTail(unescapedText);
-            text = unescapedText.toString();
+            String text = decodeHtmlEntities(matcher.group(2)).replace("\n", " ").trim();
+            if (text.isEmpty()) continue;
 
             int mins = (int) (start / 60);
             int secs = (int) (start % 60);
@@ -171,11 +281,31 @@ public class TranscriptService {
         }
 
         if (segmentCount == 0) {
-            throw new RuntimeException("No segments parsed from XML");
+            throw new RuntimeException("No segments parsed from caption XML");
         }
 
-        log.info("Fallback transcript fetched successfully ({} segments)", segmentCount);
+        log.info("Caption XML parsed successfully ({} segments)", segmentCount);
         return new TranscriptResult(sb.toString().trim(), segmentCount);
+    }
+
+    private String decodeHtmlEntities(String text) {
+        String result = text
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&apos;", "'");
+
+        // Decode numeric HTML entities like &#123;
+        java.util.regex.Matcher entityMatcher = Pattern.compile("&#(\\d+);").matcher(result);
+        StringBuilder decoded = new StringBuilder();
+        while (entityMatcher.find()) {
+            char ch = (char) Integer.parseInt(entityMatcher.group(1));
+            entityMatcher.appendReplacement(decoded, java.util.regex.Matcher.quoteReplacement(String.valueOf(ch)));
+        }
+        entityMatcher.appendTail(decoded);
+        return decoded.toString();
     }
 
     // ── Fetch Video Title (noembed fallback) ─────────────────────────────

@@ -1522,12 +1522,12 @@ body {
   .panda-chat-window {
     position: fixed;
     bottom: 14px;
-    left: 50%;
-    transform: translateX(-50%);
-    right: auto;
+    left: 14px;
+    right: 14px;
     top: auto;
-    width: calc(100vw - 28px);
+    width: calc(100% - 28px);
     max-width: 920px;
+    margin: 0 auto;
     height: 50vh;
     max-height: 420px;
     border-radius: var(--radius-lg);
@@ -1535,6 +1535,12 @@ body {
     border-bottom: 5px solid var(--accent-pink-light);
     box-shadow: 0 8px 30px rgba(255, 182, 193, 0.45);
     z-index: 1005;
+    animation: slideUpMobile 0.3s var(--ease-spring);
+  }
+
+  @keyframes slideUpMobile {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .chat-header {
@@ -1617,11 +1623,10 @@ body {
   }
 
   .panda-chat-window {
-    left: 50%;
-    transform: translateX(-50%);
-    right: auto;
+    left: 8px;
+    right: 8px;
     bottom: 8px;
-    width: calc(100vw - 16px);
+    width: calc(100% - 16px);
   }
 }
 

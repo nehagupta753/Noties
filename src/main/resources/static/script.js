@@ -408,6 +408,19 @@ function showToast(message, type = 'success') {
 //  Tabs Manager
 // ----------------------------------------
 
+function wrapTablesInNotes() {
+  if (!notesContent) return;
+  const tables = notesContent.querySelectorAll('table');
+  tables.forEach((table) => {
+    if (!table.parentElement.classList.contains('table-wrapper')) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'table-wrapper';
+      table.parentNode.insertBefore(wrapper, table);
+      wrapper.appendChild(table);
+    }
+  });
+}
+
 function renderActiveTab() {
   // Exit edit mode when switching tabs
   if (isEditMode) disableEditMode();
@@ -431,6 +444,7 @@ function renderActiveTab() {
     tabDetailed.classList.remove('active');
   }
   renderTimestamps();
+  wrapTablesInNotes();
 }
 
 tabDetailed.addEventListener('click', () => {
@@ -1015,7 +1029,7 @@ const setPointerPos = (e) => {
     mousePos.y = e.clientY;
   }
 
-  const interactiveEl = e.target.closest('button, input, a, select, textarea, [role="button"], .history-item, .panda-chat-window, .history-sidebar');
+  const interactiveEl = e.target.closest('button, input, a, select, textarea, [role="button"], .history-item, .panda-chat-window, .history-sidebar, .notes-section, .glass-card, .notes-card, .notes-content');
   isAvoiding = !!interactiveEl;
 };
 

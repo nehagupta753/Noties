@@ -1326,20 +1326,25 @@ body {
   line-height: 1.8;
 }
 
+/* ---------- Table Wrapper & Horizontal Scroll (Pre-style matching) ---------- */
 .table-wrapper {
+  display: block;
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  margin: 20px 0;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--accent-pink-light);
+  margin: 22px 0;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--accent-pink-light);
+  background: white;
+  position: relative;
 }
 
 .table-wrapper table,
 .notes-content table {
-  width: 100%;
-  min-width: 540px;
+  display: table !important;
+  width: max-content !important;
+  min-width: 580px !important;
   border-collapse: collapse;
   margin: 0;
   font-size: 15px;
@@ -1487,18 +1492,11 @@ body {
     font-size: 18px;
   }
 
-  .table-wrapper,
-  .notes-content table,
-  .chat-bubble.model table {
+  .table-wrapper {
     display: block;
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-  }
-
-  .notes-content table,
-  .chat-bubble.model table {
-    min-width: 450px;
   }
 
   .notes-toolbar {

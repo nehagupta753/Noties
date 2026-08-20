@@ -169,7 +169,11 @@ body {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 220px;
+  word-break: break-word;
+  text-align: center;
+  line-height: 1.4;
   box-shadow: 0 4px 10px rgba(255, 182, 193, 0.2);
   transition: transform 0.3s var(--ease-spring);
   pointer-events: none;
@@ -1114,6 +1118,10 @@ body {
   color: #556b2f;
 }
 
+#copy-btn {
+  display: none !important;
+}
+
 /* ---------- Edit Mode Styles ---------- */
 .action-btn.edit-active {
   background: var(--gradient-main);
@@ -1324,10 +1332,19 @@ body {
   line-height: 1.8;
 }
 
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 20px 0;
+  border-radius: var(--radius-sm);
+}
+
+.table-wrapper table,
 .notes-content table {
   width: 100%;
   border-collapse: collapse;
-  margin: 20px 0;
+  margin: 0;
   font-size: 15px;
 }
 
@@ -1471,6 +1488,20 @@ body {
 
   .notes-content h2 {
     font-size: 18px;
+  }
+
+  .table-wrapper,
+  .notes-content table,
+  .chat-bubble.model table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .notes-content table,
+  .chat-bubble.model table {
+    min-width: 450px;
   }
 
   .notes-toolbar {

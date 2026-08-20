@@ -351,7 +351,7 @@ function markdownToHtml(md) {
       }
       table += '</tbody></table>';
 
-      return table;
+      return `<div class="table-wrapper">${table}</div>`;
     }
   );
 

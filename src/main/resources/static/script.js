@@ -142,7 +142,7 @@ function saveEdits() {
       title: currentVideoTitle,
       notes: rawNotesMarkdown,
       revision: rawRevisionMarkdown,
-      transcriptLength: transcriptCount.querySelector('span').textContent.replace(' transcript segments', '') || '—',
+      transcriptLength: (transcriptCount && transcriptCount.querySelector('span')) ? transcriptCount.querySelector('span').textContent.replace(' transcript segments', '') || '—' : '—',
       date: dateStr,
       generatedAt,
       lastEditedAt,
@@ -581,7 +581,9 @@ function loadHistoryNotes(item) {
   activeTab = 'detailed';
   renderActiveTab();
   
-  transcriptCount.querySelector('span').textContent = `${item.transcriptLength || '—'} transcript segments`;
+  if (transcriptCount && transcriptCount.querySelector('span')) {
+    transcriptCount.querySelector('span').textContent = `${item.transcriptLength || '—'} transcript segments`;
+  }
   
   urlInput.value = `https://www.youtube.com/watch?v=${item.videoId}`;
   showVideoPreview(item.videoId);
@@ -727,10 +729,8 @@ async function generateNotes() {
           renderActiveTab();
 
           const segmentLabel = `${event.transcriptLength} transcript segments`;
-          if (event.transcriptLength > 0) {
+          if (transcriptCount && transcriptCount.querySelector('span')) {
             transcriptCount.querySelector('span').textContent = segmentLabel;
-            transcriptCount.style.display = '';
-          } else {
             transcriptCount.style.display = 'none';
           }
 

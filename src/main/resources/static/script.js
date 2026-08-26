@@ -54,6 +54,8 @@ let currentVideoTitle = '';
 let isEditMode = false;
 let generatedAt = null;   // ISO string — when notes were generated
 let lastEditedAt = null;  // ISO string — when notes were last edited
+let currentRequestId = 0;
+let activeFetchController = null;
 
 // ----------------------------------------
 //  Timestamp Helpers
@@ -638,25 +640,44 @@ async function generateNotes() {
   }
 
   const videoId = extractVideoId(url);
-  
+
   if (!videoId) {
     showToast('Please enter a valid YouTube video URL 🌸', 'error');
     return;
   }
 
+  // Cancel any ongoing fetch/SSE request
+  if (activeFetchController) {
+    activeFetchController.abort();
+    activeFetchController = null;
+  }
+
+  // Assign new request ID & AbortController
+  const thisRequestId = ++currentRequestId;
+  activeFetchController = new AbortController();
+
+  // Clear all previous video state & generated notes immediately
   currentVideoId = videoId;
+  currentVideoTitle = '';
+  rawNotesMarkdown = '';
+  rawRevisionMarkdown = '';
+  generatedAt = null;
+  lastEditedAt = null;
+  if (notesContent) notesContent.innerHTML = '';
 
   showSection(loadingSection);
   generateBtn.disabled = true;
   startLoadingAnimation();
-  
+
   const progressContainer = document.getElementById('progress-bar-container');
   const progressFill = document.getElementById('progress-bar-fill');
   const progressText = document.getElementById('progress-text');
   const loadingTitle = document.getElementById('loading-title');
-  const loadingHint = document.getElementById('loading-hint');
 
   if (loadingTitle) loadingTitle.textContent = 'Generating Your Notes';
+  if (progressContainer) progressContainer.style.display = 'block';
+  if (progressFill) progressFill.style.width = '5%';
+  if (progressText) progressText.textContent = 'Connecting...';
   triggerPandaBubble('Writing notes and revision sheets... 📝');
 
   const endpoint = '/api/generate-notes';
@@ -666,6 +687,7 @@ async function generateNotes() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
+      signal: activeFetchController.signal,
     });
 
     if (!response.ok && response.headers.get('content-type')?.includes('application/json')) {
@@ -684,7 +706,6 @@ async function generateNotes() {
         buffer += decoder.decode(value, { stream: true });
       }
 
-      // Standard SSE messages are separated by \n\n
       const messages = buffer.split('\n\n');
       buffer = done ? '' : (messages.pop() || '');
 
@@ -705,11 +726,18 @@ async function generateNotes() {
           continue;
         }
 
+        // Validate that this response belongs to the currently active request
+        if (thisRequestId !== currentRequestId) {
+          console.warn(`[Req:${thisRequestId}] Stale response ignored. Active request is ${currentRequestId}`);
+          try { reader.cancel(); } catch (e) {}
+          return;
+        }
+
         if (event.type === 'progress' || event.type === 'video-progress') {
           if (progressContainer) progressContainer.style.display = 'block';
           if (progressFill) progressFill.style.width = `${event.progress || 0}%`;
           if (progressText) progressText.textContent = event.message || 'Processing...';
-          
+
           if (event.progress > 10) {
             const step1 = document.getElementById('step-1');
             if (step1) { step1.classList.remove('active'); step1.classList.add('done'); }
@@ -724,13 +752,17 @@ async function generateNotes() {
           }
         }
 
-
-
         if (event.type === 'error') {
           throw new Error(event.error);
         }
 
         if (event.type === 'complete') {
+          // Verify videoId match
+          if (event.videoId && event.videoId !== currentVideoId) {
+            console.warn(`[Req:${thisRequestId}] VideoId mismatch. Event: ${event.videoId}, Current: ${currentVideoId}`);
+            return;
+          }
+
           rawNotesMarkdown = event.notes;
           rawRevisionMarkdown = event.revision;
           currentVideoTitle = event.videoTitle || 'YouTube Video';
@@ -773,15 +805,24 @@ async function generateNotes() {
       if (done) break;
     }
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log(`[Req:${thisRequestId}] Request aborted due to new generation request.`);
+      return;
+    }
+    if (thisRequestId !== currentRequestId) return;
+
     showSection(errorSection);
     inputSection.style.display = 'block';
     errorMessage.textContent = error.message;
     triggerPandaBubble('Oh no! Something went wrong... 😿');
   } finally {
-    generateBtn.disabled = false;
-    stopLoadingAnimation();
-    if (progressContainer) progressContainer.style.display = 'none';
-    if (progressFill) progressFill.style.width = '0%';
+    if (thisRequestId === currentRequestId) {
+      generateBtn.disabled = false;
+      stopLoadingAnimation();
+      if (progressContainer) progressContainer.style.display = 'none';
+      if (progressFill) progressFill.style.width = '0%';
+      activeFetchController = null;
+    }
   }
 }
 

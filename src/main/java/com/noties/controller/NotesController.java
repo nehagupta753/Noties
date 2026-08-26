@@ -53,32 +53,36 @@ public class NotesController {
             return emitter;
         }
 
+        String requestId = UUID.randomUUID().toString().substring(0, 8);
+
         executor.submit(() -> {
             try {
-                sendProgress(emitter, "Extracting video transcript...", 5);
+                sendProgress(emitter, "Fetching video title...", 5);
+                String title = transcripts.fetchVideoTitle(videoId);
 
+                log.info("[Req:{}] Starting note generation for videoId: '{}', title: '{}'", requestId, videoId, title);
+
+                sendProgress(emitter, "Extracting video transcript...", 10);
                 String transcript;
                 int segmentCount;
-                boolean directVideoMode = false;
                 try {
                     var result = transcripts.fetchTranscript(videoId);
+                    if (result == null || result.text() == null || result.text().isBlank()) {
+                        throw new RuntimeException("Transcript returned empty text");
+                    }
                     transcript = result.text();
                     segmentCount = result.segmentCount();
-                } catch (RuntimeException e) {
-                    log.warn("Transcript fetch failed for {}: {}. Switching to direct video mode.", videoId, e.getMessage());
-                    transcript = null;
-                    segmentCount = 0;
-                    directVideoMode = true;
+                } catch (Exception e) {
+                    log.warn("[Req:{}] Transcript fetch failed for videoId '{}': {}. Aborting generation.", requestId, videoId, e.getMessage());
+                    sendError(emitter, "Transcript could not be fetched for this video.");
+                    return;
                 }
 
-                if (!directVideoMode) {
-                    sendProgress(emitter, "Transcript extracted!", 15);
-                }
+                sendProgress(emitter, "Transcript extracted!", 15);
 
-                // Fetch title concurrently in the background
-                CompletableFuture<String> titleFuture = CompletableFuture.supplyAsync(
-                        () -> transcripts.fetchVideoTitle(videoId), executor
-                );
+                String preview = transcript.substring(0, Math.min(200, transcript.length())).replace("\n", " ");
+                log.info("[Req:{}] Transcript validated. Chars: {}, Segments: {}. Preview: '{}'",
+                        requestId, transcript.length(), segmentCount, preview);
 
                 String detailedNotes;
                 String revisionNotes;
@@ -86,29 +90,16 @@ public class NotesController {
                 int CHUNK_THRESHOLD = 60_000;
                 int CHUNK_SIZE = 50_000;
 
-                if (directVideoMode) {
-                    // Fallback: Let Gemini analyze the video directly (bypasses YouTube IP blocking)
-                    sendProgress(emitter, "Using AI to analyze video directly...", 20);
-                    try {
-                        var notes = gemini.generateNotesFromVideo(videoId);
-                        detailedNotes = notes.getOrDefault("detailed", "");
-                        revisionNotes = notes.getOrDefault("revision", "");
-                        sendProgress(emitter, "Notes generated from video analysis!", 90);
-                    } catch (Exception videoEx) {
-                        log.error("Direct video analysis also failed for {}: {}", videoId, videoEx.getMessage());
-                        sendError(emitter, "Could not fetch transcript or analyze video. The video may be private, have no captions, or be too long. Please try again.");
-                        return;
-                    }
-                } else if (transcript.length() < CHUNK_THRESHOLD) {
+                if (transcript.length() < CHUNK_THRESHOLD) {
                     // Short video: single call generates both detailed notes and revision sheet
                     sendProgress(emitter, "Generating notes with AI...", 30);
-                    var notes = gemini.generateNotes(transcript);
+                    var notes = gemini.generateNotes(title, transcript);
                     detailedNotes = notes.getOrDefault("detailed", "");
                     revisionNotes = notes.getOrDefault("revision", "");
                 } else {
                     // Long video: split into chunks and process in parallel
                     List<String> chunks = transcripts.splitTranscriptIntoChunks(transcript, CHUNK_SIZE);
-                    log.info("Long video: processing {} chunks in parallel", chunks.size());
+                    log.info("[Req:{}] Long video: processing {} chunks in parallel", requestId, chunks.size());
                     sendProgress(emitter, "Long video detected! Processing in " + chunks.size() + " parts...", 20);
 
                     CompletableFuture<String>[] futures = new CompletableFuture[chunks.size()];
@@ -118,7 +109,7 @@ public class NotesController {
                         final String chunk = chunks.get(i);
 
                         futures[idx] = CompletableFuture.supplyAsync(() -> {
-                            String chunkNotes = gemini.generateNotesForChunk(chunk, idx, chunks.size());
+                            String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size());
                             int progress = 20 + Math.round(((float) (idx + 1) / chunks.size()) * 55);
                             sendProgress(emitter, "Generated notes for part " + (idx + 1) + " of " + chunks.size() + "...", progress);
                             return chunkNotes;
@@ -135,18 +126,15 @@ public class NotesController {
                     detailedNotes = String.join("\n\n---\n\n", chunkResults);
 
                     sendProgress(emitter, "Creating comprehensive revision notes...", 80);
-                    revisionNotes = gemini.generateConsolidatedRevision(chunkResults);
+                    revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults);
                 }
 
-                // Resolve title fallback safely
-                String title = "YouTube Video";
-                try {
-                    title = titleFuture.get(5, TimeUnit.SECONDS);
-                } catch (Exception ignored) {}
+                log.info("[Req:{}] Note generation complete for videoId: '{}'", requestId, videoId);
 
                 // Send complete event with full payload
                 Map<String, Object> completeEvent = Map.of(
                         "type", "complete",
+                        "requestId", requestId,
                         "notes", detailedNotes,
                         "revision", revisionNotes,
                         "videoId", videoId,
@@ -158,7 +146,7 @@ public class NotesController {
                 emitter.complete();
 
             } catch (Exception e) {
-                log.error("Note generation error: {}", e.getMessage());
+                log.error("[Req:{}] Note generation error for videoId '{}': {}", requestId, videoId, e.getMessage());
                 String msg = e.getMessage() != null ? e.getMessage() : "";
 
                 String errorMsg = "Something went wrong while generating notes. Please try again.";

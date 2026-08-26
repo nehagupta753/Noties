@@ -67,37 +67,12 @@ public class GeminiService {
     // ── Public API Methods ──────────────────────────────────────────────
 
     // Generate detailed notes and revision sheet for a short video
-    public Map<String, String> generateNotes(String transcript) {
-        String prompt = buildCombinedNotesPrompt(transcript);
+    public Map<String, String> generateNotes(String videoTitle, String transcript) {
+        String prompt = buildCombinedNotesPrompt(videoTitle, transcript);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 65536)
         );
-
-        String response = callWithRetry(body, null);
-        String[] parts = response.split("===REVISION_NOTES===");
-        String detailed = parts[0].trim();
-        String revision = parts.length > 1 ? parts[1].trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
-
-        return Map.of("detailed", detailed, "revision", revision);
-    }
-
-    // Generate notes directly from YouTube video (used when transcript fetch fails on cloud)
-    public Map<String, String> generateNotesFromVideo(String videoId) {
-        String youtubeUrl = "https://www.youtube.com/watch?v=" + videoId;
-        String prompt = buildVideoNotesPrompt();
-
-        // Build multimodal request with video + text
-        Map<String, Object> videoPart = new HashMap<>();
-        videoPart.put("fileData", Map.of(
-                "mimeType", "video/*",
-                "fileUri", youtubeUrl
-        ));
-        Map<String, Object> textPart = Map.of("text", prompt);
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("contents", List.of(Map.of("parts", List.of(videoPart, textPart))));
-        body.put("generationConfig", Map.of("maxOutputTokens", 65536));
 
         String response = callWithRetry(body, null);
         String[] parts = response.split("===REVISION_NOTES===");
@@ -108,8 +83,8 @@ public class GeminiService {
     }
 
     // Generate notes for a single chunk of a long video
-    public String generateNotesForChunk(String chunk, int chunkIndex, int totalChunks) {
-        String prompt = buildChunkNotesPrompt(chunk, chunkIndex, totalChunks);
+    public String generateNotesForChunk(String videoTitle, String chunk, int chunkIndex, int totalChunks) {
+        String prompt = buildChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 65536)
@@ -118,8 +93,8 @@ public class GeminiService {
     }
 
     // Combine chunk notes into one consolidated revision sheet
-    public String generateConsolidatedRevision(List<String> allChunkNotes) {
-        String prompt = buildMergePrompt(allChunkNotes);
+    public String generateConsolidatedRevision(String videoTitle, List<String> allChunkNotes) {
+        String prompt = buildMergePrompt(videoTitle, allChunkNotes);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 65536)
@@ -365,81 +340,54 @@ public class GeminiService {
 
     // ── Prompts matching original Node.js ──────────────────────────────
 
-    private String buildCombinedNotesPrompt(String transcript) {
+    private String buildCombinedNotesPrompt(String videoTitle, String transcript) {
         return """
                 You are a master educator and textbook author creating high-yield, aesthetic study notes for students.
-                You are given the COMPLETE transcript of a video. You must create TWO distinct sections in a SINGLE response.
                 
-                CRITICAL REQUIREMENTS:
-                1. FULL CHRONOLOGICAL COVERAGE: Cover every concept, formula, mechanism, code snippet, definition, and insight from 0:00 to the end. Do NOT truncate or rush through later topics.
-                2. RICH FORMATTING & HIERARCHY:
+                TARGET VIDEO TITLE: "%s"
+                
+                CRITICAL INSTRUCTIONS & ACCURACY GUARDRAILS:
+                1. TOPIC & CONTENT STRICTNESS: Generate notes ONLY and EXCLUSIVELY from the provided transcript below for the video titled "%s".
+                2. NO TOPIC SWITCHING: Do NOT change the subject, do NOT invent another topic (e.g. C++, Python, Deep Learning, or general computer science unless explicitly present in this transcript), and do NOT reuse knowledge from other videos.
+                3. INSUFFICIENT DATA RULE: If the provided transcript is empty or insufficient, state: "The transcript provided is insufficient to generate study notes for this video."
+                4. FULL CHRONOLOGICAL COVERAGE: Cover every concept, formula, mechanism, code snippet, definition, and insight from start to end of this transcript. Do NOT truncate or rush through later topics.
+                5. RICH FORMATTING & HIERARCHY:
                    - Use clean markdown `#`, `##`, `###` headers for logical module separation.
                    - Use bold text for key terms, definitions, and important syntax.
                    - Use bullet points and numbered lists for readability.
                    - For tutorials/technical topics: Provide clean, commented, fully explained code blocks or command sequences.
-                   - Include practical comparisons, tables (where applicable), and real-world intuition.
                    - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
-                3. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the top-level title and content.
+                6. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the top-level title and content.
                 
                 ---
                 
                 **PART 1: Detailed Study Notes**
-                Write a complete, beautifully structured, thorough textbook-grade reference guide. Every topic must be explained with depth, context, and clear examples.
+                Write a complete, beautifully structured, thorough textbook-grade reference guide based ONLY on the transcript.
                 
                 Then write EXACTLY this separator line on its own line:
                 ===REVISION_NOTES===
                 
                 **PART 2: Quick Revision & Exam Cheat Sheet**
-                Create an exhaustive, high-yield summary designed for rapid review:
+                Create an exhaustive, high-yield summary designed for rapid review based ONLY on the transcript:
                 - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept, chronologically.
-                - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions.
-                - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas.
-                - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`).
+                - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions from this transcript.
+                - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas from this transcript.
+                - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`) based on this transcript.
                 
                 ---
-                Transcript:
-                """ + transcript;
+                TRANSCRIPT FOR VIDEO "%s":
+                %s
+                """.formatted(videoTitle, videoTitle, videoTitle, transcript);
     }
 
-    private String buildVideoNotesPrompt() {
-        return """
-                You are a master educator and textbook author creating high-yield, aesthetic study notes for students.
-                You are given a YouTube video. Watch the ENTIRE video carefully and create TWO distinct sections in a SINGLE response.
-                
-                CRITICAL REQUIREMENTS:
-                1. FULL CHRONOLOGICAL COVERAGE: Cover every concept, formula, mechanism, code snippet, definition, and insight from start to end. Do NOT truncate or rush through later topics.
-                2. RICH FORMATTING & HIERARCHY:
-                   - Use clean markdown `#`, `##`, `###` headers for logical module separation.
-                   - Use bold text for key terms, definitions, and important syntax.
-                   - Use bullet points and numbered lists for readability.
-                   - For tutorials/technical topics: Provide clean, commented, fully explained code blocks or command sequences.
-                   - Include practical comparisons, tables (where applicable), and real-world intuition.
-                   - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
-                3. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the top-level title and content.
-                
-                ---
-                
-                **PART 1: Detailed Study Notes**
-                Write a complete, beautifully structured, thorough textbook-grade reference guide. Every topic must be explained with depth, context, and clear examples.
-                
-                Then write EXACTLY this separator line on its own line:
-                ===REVISION_NOTES===
-                
-                **PART 2: Quick Revision & Exam Cheat Sheet**
-                Create an exhaustive, high-yield summary designed for rapid review:
-                - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept, chronologically.
-                - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions.
-                - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas.
-                - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`).
-                """;
-    }
-
-    private String buildChunkNotesPrompt(String chunk, int chunkIndex, int totalChunks) {
+    private String buildChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks) {
         return """
                 You are a master educator and textbook author.
-                You are given PART %d of %d of a video transcript.
+                You are given PART %d of %d of the transcript for the video titled "%s".
                 
-                Generate exhaustive, beautifully formatted study notes covering EVERY single concept, explanation, code example, and insight in THIS SECTION ONLY.
+                CRITICAL GUARDRAIL:
+                Generate exhaustive study notes covering EVERY concept in THIS SECTION ONLY.
+                Do NOT change the topic or introduce unrelated subjects. Generate content strictly from this transcript chunk.
                 
                 FORMATTING RULES:
                 - Use clear markdown headers (`##`, `###`), bold keywords, and clean bulleted explanations.
@@ -449,21 +397,22 @@ public class GeminiService {
                 - Do not include conversational filler or meta intros.
                 
                 ---
-                Transcript Chunk %d of %d:
+                Transcript Chunk %d of %d for "%s":
                 %s
-                """.formatted(chunkIndex + 1, totalChunks, chunkIndex + 1, totalChunks, chunk);
+                """.formatted(chunkIndex + 1, totalChunks, videoTitle, chunkIndex + 1, totalChunks, videoTitle, chunk);
     }
 
-    private String buildMergePrompt(List<String> allChunkNotes) {
+    private String buildMergePrompt(String videoTitle, List<String> allChunkNotes) {
         String combined = String.join("\n\n---\n\n", allChunkNotes);
         return """
                 You are a master educator and revision guide specialist.
-                Below are the detailed study notes compiled from %d sections of a long tutorial video.
+                Below are detailed study notes compiled from %d sections of the video titled "%s".
                 
-                Create an EXHAUSTIVE, BEAUTIFULLY ORGANIZED Quick Revision Sheet covering ALL concepts from ALL %d parts.
+                Create an EXHAUSTIVE, BEAUTIFULLY ORGANIZED Quick Revision Sheet covering ALL concepts from ALL %d parts of this video.
+                STRICT RULE: Do NOT introduce unrelated topics outside of this video's notes.
                 
                 STRUCTURE:
-                # 🚀 Quick Revision & Exam Preparation Guide
+                # 🚀 Quick Revision & Exam Preparation Guide: %s
                 
                 ## 📚 Comprehensive Topic Recap
                 - Go through every single module/topic from Part 1 to Part %d in chronological order.
@@ -473,7 +422,7 @@ public class GeminiService {
                 - Bulleted list of every crucial term, definition, theory, or rule introduced.
                 
                 ## 📝 Syntax, Commands & Formulas Cheat Sheet
-                - Provide code syntax tables, command cheat sheets, or key formulas.
+                - Provide code syntax tables, command cheat sheets, or key formulas from this video.
                 
                 ## 🧠 Flashcard Recall Q&A
                 - Minimum 15-20 rapid-fire flashcards formatted as:
@@ -481,8 +430,8 @@ public class GeminiService {
                     **A:** [Direct, accurate answer]
                 
                 ---
-                Compiled Notes from all parts:
+                Compiled Notes from all parts of "%s":
                 %s
-                """.formatted(allChunkNotes.size(), allChunkNotes.size(), allChunkNotes.size(), combined);
+                """.formatted(allChunkNotes.size(), videoTitle, allChunkNotes.size(), videoTitle, allChunkNotes.size(), videoTitle, combined);
     }
 }

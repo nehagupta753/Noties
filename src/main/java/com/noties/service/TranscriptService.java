@@ -330,45 +330,76 @@ public class TranscriptService {
     // ── Shared: Fetch and parse caption XML ────────────────────────────
 
     private TranscriptResult fetchAndParseCaptionXml(String captionUrl) throws Exception {
-        HttpRequest xmlRequest = HttpRequest.newBuilder()
-                .uri(URI.create(captionUrl))
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
-                .header("Accept-Language", "en-US,en;q=0.9")
-                .timeout(Duration.ofSeconds(15))
-                .GET()
-                .build();
-
-        HttpResponse<String> xmlResponse = http.send(xmlRequest, HttpResponse.BodyHandlers.ofString());
-        String xml = xmlResponse.body();
-
-        java.util.regex.Matcher matcher = Pattern.compile("<text\\s+start=\"([^\"]+)\"[^>]*>(.*?)</text>", Pattern.DOTALL).matcher(xml);
         StringBuilder sb = new StringBuilder();
-        int segmentCount = 0;
+        int totalSegments = 0;
+        double lastStartSeconds = 0;
+        int maxPages = 15; // Support up to 15 pages for multi-hour videos
 
-        while (matcher.find()) {
-            String text = decodeHtmlEntities(matcher.group(2)).replaceAll("<[^>]+>", "").replace("\n", " ").trim();
-            if (text.isEmpty()) continue;
-            sb.append(text).append("\n");
-            segmentCount++;
-        }
-
-        if (segmentCount == 0) {
-            // Fallback for <p t="12345" ...> XML format
-            java.util.regex.Matcher pMatcher = Pattern.compile("<p\\s+t=\"(\\d+)\"[^>]*>(.*?)</p>", Pattern.DOTALL).matcher(xml);
-            while (pMatcher.find()) {
-                String text = decodeHtmlEntities(pMatcher.group(2)).replaceAll("<[^>]+>", "").replace("\n", " ").trim();
-                if (text.isEmpty()) continue;
-                sb.append(text).append("\n");
-                segmentCount++;
+        for (int page = 0; page < maxPages; page++) {
+            String currentUrl = captionUrl;
+            if (page > 0 && lastStartSeconds > 0) {
+                int startSec = (int) Math.floor(lastStartSeconds) + 1;
+                currentUrl += (captionUrl.contains("?") ? "&" : "?") + "start=" + startSec;
             }
+
+            HttpRequest xmlRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(currentUrl))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+                    .header("Accept-Language", "en-US,en;q=0.9")
+                    .timeout(Duration.ofSeconds(15))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> xmlResponse = http.send(xmlRequest, HttpResponse.BodyHandlers.ofString());
+            String xml = xmlResponse.body();
+            if (xml == null || xml.isBlank()) break;
+
+            int pageSegments = 0;
+            double pageMaxStart = lastStartSeconds;
+
+            java.util.regex.Matcher matcher = Pattern.compile("<text\\s+start=\"([^\"]+)\"[^>]*>(.*?)</text>", Pattern.DOTALL).matcher(xml);
+            while (matcher.find()) {
+                double start = Double.parseDouble(matcher.group(1));
+                if (start <= lastStartSeconds && page > 0) continue;
+                String text = decodeHtmlEntities(matcher.group(2)).replaceAll("<[^>]+>", "").replace("\n", " ").trim();
+                if (text.isEmpty()) continue;
+
+                sb.append(text).append("\n");
+                pageSegments++;
+                totalSegments++;
+                if (start > pageMaxStart) pageMaxStart = start;
+            }
+
+            if (pageSegments == 0) {
+                // Fallback for <p t="12345" ...> XML format
+                java.util.regex.Matcher pMatcher = Pattern.compile("<p\\s+t=\"(\\d+)\"[^>]*>(.*?)</p>", Pattern.DOTALL).matcher(xml);
+                while (pMatcher.find()) {
+                    double start = Double.parseDouble(pMatcher.group(1)) / 1000.0;
+                    if (start <= lastStartSeconds && page > 0) continue;
+                    String text = decodeHtmlEntities(pMatcher.group(2)).replaceAll("<[^>]+>", "").replace("\n", " ").trim();
+                    if (text.isEmpty()) continue;
+
+                    sb.append(text).append("\n");
+                    pageSegments++;
+                    totalSegments++;
+                    if (start > pageMaxStart) pageMaxStart = start;
+                }
+            }
+
+            if (pageSegments < 50 || pageMaxStart <= lastStartSeconds) {
+                break;
+            }
+
+            lastStartSeconds = pageMaxStart;
+            log.info("Parsed caption page {} up to {}s ({} total segments so far)", page + 1, (int) lastStartSeconds, totalSegments);
         }
 
-        if (segmentCount == 0) {
+        if (totalSegments == 0) {
             throw new RuntimeException("No segments parsed from caption XML");
         }
 
-        log.info("Caption XML parsed successfully ({} segments)", segmentCount);
-        return new TranscriptResult(sb.toString().trim(), segmentCount);
+        log.info("Full caption XML parsed successfully ({} total segments across all pages)", totalSegments);
+        return new TranscriptResult(sb.toString().trim(), totalSegments);
     }
 
     private String decodeHtmlEntities(String text) {

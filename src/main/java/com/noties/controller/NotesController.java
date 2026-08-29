@@ -75,11 +75,11 @@ public class NotesController {
                 String detailedNotes;
                 String revisionNotes;
 
-                int CHUNK_THRESHOLD = 80_000;
-                int CHUNK_SIZE = 100_000;
+                int CHUNK_THRESHOLD = 30_000;
+                int CHUNK_SIZE = 35_000;
 
                 if (hasTranscript && transcript != null && !transcript.isBlank()) {
-                    sendProgress(emitter, "Transcript validated! Generating study notes...", 30);
+                    sendProgress(emitter, "Transcript validated! Generating study notes...", 25);
                     String preview = transcript.substring(0, Math.min(200, transcript.length())).replace("\n", " ");
                     log.info("[Req:{}] Transcript mode. Chars: {}, Segments: {}. Preview: '{}'",
                             requestId, transcript.length(), segmentCount, preview);
@@ -92,14 +92,14 @@ public class NotesController {
                         List<String> chunks = transcripts.splitTranscriptIntoChunks(transcript, CHUNK_SIZE);
                         log.info("[Req:{}] Long video detected ({} chars): processing {} parts sequentially",
                                 requestId, transcript.length(), chunks.size());
-                        sendProgress(emitter, "Long video detected! Processing all " + chunks.size() + " course parts from start to finish...", 30);
+                        sendProgress(emitter, "Full course video detected! Processing all " + chunks.size() + " course parts from start to finish...", 25);
 
                         List<String> chunkResults = new ArrayList<>();
                         for (int i = 0; i < chunks.size(); i++) {
                             int idx = i;
                             String chunk = chunks.get(i);
-                            int progress = 30 + Math.round(((float) (idx + 1) / chunks.size()) * 50);
-                            sendProgress(emitter, "Generating notes for Part " + (idx + 1) + " of " + chunks.size() + "...", progress);
+                            int progress = 25 + Math.round(((float) (idx + 1) / chunks.size()) * 60);
+                            sendProgress(emitter, "Generating detailed notes for Part " + (idx + 1) + " of " + chunks.size() + "...", progress);
 
                             String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size());
                             if (chunkNotes != null && !chunkNotes.isBlank()) {
@@ -109,7 +109,7 @@ public class NotesController {
 
                         detailedNotes = String.join("\n\n---\n\n", chunkResults);
 
-                        sendProgress(emitter, "Creating comprehensive revision sheet for all " + chunks.size() + " parts...", 85);
+                        sendProgress(emitter, "Creating comprehensive Quick Revision Sheet for all " + chunks.size() + " parts...", 90);
                         revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults);
                     }
                 } else {

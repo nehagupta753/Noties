@@ -63,13 +63,14 @@ public class NotesController {
                 String title = videoData.title();
                 String description = videoData.description();
                 String author = videoData.author();
+                String duration = videoData.duration();
                 List<String> keywords = videoData.keywords();
                 boolean hasTranscript = videoData.hasTranscript();
                 String transcript = videoData.transcriptText();
                 int segmentCount = videoData.segmentCount();
 
-                log.info("[Req:{}] Video data retrieved for videoId '{}': title='{}', hasTranscript={}",
-                        requestId, videoId, title, hasTranscript);
+                log.info("[Req:{}] Video data retrieved for videoId '{}': title='{}', duration='{}', hasTranscript={}",
+                        requestId, videoId, title, duration, hasTranscript);
 
                 String detailedNotes;
                 String revisionNotes;
@@ -115,7 +116,7 @@ public class NotesController {
                     log.info("[Req:{}] Transcript unavailable. Generating notes from video outline and metadata for '{}'", requestId, title);
                     sendProgress(emitter, "Analyzing video outline & content structure...", 35);
 
-                    var notes = gemini.generateNotesFromMetadata(title, description, author, keywords);
+                    var notes = gemini.generateNotesFromMetadata(title, description, author, duration, keywords);
                     detailedNotes = notes.getOrDefault("detailed", "");
                     revisionNotes = notes.getOrDefault("revision", "");
                 }

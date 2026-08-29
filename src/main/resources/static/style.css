@@ -2158,29 +2158,3 @@ body {
   margin-top: 8px;
   font-weight: 500;
 }
-
-/* ---------- Interactive Timestamp Badges & Pills ---------- */
-.timestamp-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--bg-secondary, #fff0f5);
-  color: var(--accent-pink-dark, #d81b60);
-  border: 1.5px solid var(--accent-pink-medium, #f8bbd0);
-  border-radius: 12px;
-  padding: 2px 8px;
-  font-size: 0.85em;
-  font-weight: 700;
-  text-decoration: none;
-  margin: 0 3px;
-  vertical-align: middle;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(255, 182, 193, 0.3);
-}
-
-.timestamp-pill:hover {
-  background: var(--accent-pink-light, #f8bbd0);
-  color: #b71c1c;
-  transform: translateY(-1px);
-  box-shadow: 0 3px 6px rgba(255, 182, 193, 0.45);
-}

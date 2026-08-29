@@ -375,21 +375,6 @@ function markdownToHtml(md) {
 
   html = html.replace(/\n{3,}/g, '\n\n');
 
-  // Timestamps [mm:ss] or [hh:mm:ss] -> Interactive Youtube Timestamp Links
-  html = html.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g, (match, timeStr) => {
-    if (currentVideoId) {
-      const parts = timeStr.split(':').map(Number);
-      let seconds = 0;
-      if (parts.length === 3) {
-        seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-      } else if (parts.length === 2) {
-        seconds = parts[0] * 60 + parts[1];
-      }
-      return `<a href="https://www.youtube.com/watch?v=${currentVideoId}&t=${seconds}s" target="_blank" rel="noopener" class="timestamp-pill" title="Jump to ${timeStr} in video">⏱️ ${timeStr}</a>`;
-    }
-    return `<span class="timestamp-pill">⏱️ ${timeStr}</span>`;
-  });
-
   return html;
 }
 

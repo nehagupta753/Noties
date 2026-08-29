@@ -41,13 +41,14 @@ public class TranscriptService {
     // Immutable records to return transcript text and video metadata together
     public record TranscriptResult(String text, int segmentCount) {}
 
-    public record VideoMetadata(String title, String description, String author, List<String> keywords) {}
+    public record VideoMetadata(String title, String description, String author, String duration, List<String> keywords) {}
 
     public record VideoData(
             String videoId,
             String title,
             String description,
             String author,
+            String duration,
             List<String> keywords,
             String transcriptText,
             int segmentCount,
@@ -68,6 +69,7 @@ public class TranscriptService {
                         metadata.title(),
                         metadata.description(),
                         metadata.author(),
+                        metadata.duration(),
                         metadata.keywords(),
                         result.text(),
                         result.segmentCount(),
@@ -83,6 +85,7 @@ public class TranscriptService {
                 metadata.title(),
                 metadata.description(),
                 metadata.author(),
+                metadata.duration(),
                 metadata.keywords(),
                 "",
                 0,
@@ -118,17 +121,12 @@ public class TranscriptService {
             var fragments = content.getContent();
             int segmentCount = fragments.size();
 
-            // Format fragments with timestamps: [mm:ss] or [hh:mm:ss] Text
+            // Format fragments cleanly
             StringBuilder sb = new StringBuilder();
             for (var frag : fragments) {
-                double start = frag.getStart();
-                int hours = (int) (start / 3600);
-                int mins = (int) ((start % 3600) / 60);
-                int secs = (int) (start % 60);
-                if (hours > 0) {
-                    sb.append(String.format("[%d:%02d:%02d] %s\n", hours, mins, secs, frag.getText()));
-                } else {
-                    sb.append(String.format("[%02d:%02d] %s\n", mins, secs, frag.getText()));
+                String text = frag.getText().replace("\n", " ").trim();
+                if (!text.isEmpty()) {
+                    sb.append(text).append("\n");
                 }
             }
 
@@ -271,6 +269,10 @@ public class TranscriptService {
             throw new RuntimeException("Empty caption URL (" + clientName + ")");
         }
 
+        if (!captionUrl.contains("fmt=")) {
+            captionUrl += "&fmt=xml";
+        }
+
         log.info("Got caption URL via InnerTube client {}", clientName);
         return captionUrl;
     }
@@ -283,20 +285,20 @@ public class TranscriptService {
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .header("Accept", "text/html,application/xhtml+xml")
-                .header("Cookie", "CONSENT=PENDING+987")
-                .timeout(Duration.ofSeconds(20))
+                .header("Cookie", "CONSENT=PENDING+999; YES=cb")
+                .timeout(Duration.ofSeconds(15))
                 .GET()
                 .build();
 
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
         String html = response.body();
 
-        int captionTracksIndex = html.indexOf("\"captionTracks\":");
-        if (captionTracksIndex == -1) {
-            throw new RuntimeException("No caption tracks found in page HTML (possible consent page or IP block)");
+        int idx = html.indexOf("\"captionTracks\":");
+        if (idx == -1) {
+            throw new RuntimeException("No caption tracks in page HTML");
         }
 
-        String jsonSubstring = html.substring(captionTracksIndex + "\"captionTracks\":".length());
+        String jsonSubstring = html.substring(idx + 16);
         int arrayEnd = jsonSubstring.indexOf("]");
         if (arrayEnd == -1) {
             throw new RuntimeException("Could not parse caption tracks array");
@@ -316,6 +318,10 @@ public class TranscriptService {
         }
         if (captionUrl == null) {
             throw new RuntimeException("No valid caption URL found");
+        }
+
+        if (!captionUrl.contains("fmt=")) {
+            captionUrl += "&fmt=xml";
         }
 
         return fetchAndParseCaptionXml(captionUrl);
@@ -340,19 +346,21 @@ public class TranscriptService {
         int segmentCount = 0;
 
         while (matcher.find()) {
-            double start = Double.parseDouble(matcher.group(1));
-            String text = decodeHtmlEntities(matcher.group(2)).replace("\n", " ").trim();
+            String text = decodeHtmlEntities(matcher.group(2)).replaceAll("<[^>]+>", "").replace("\n", " ").trim();
             if (text.isEmpty()) continue;
-
-            int hours = (int) (start / 3600);
-            int mins = (int) ((start % 3600) / 60);
-            int secs = (int) (start % 60);
-            if (hours > 0) {
-                sb.append(String.format("[%d:%02d:%02d] %s\n", hours, mins, secs, text));
-            } else {
-                sb.append(String.format("[%02d:%02d] %s\n", mins, secs, text));
-            }
+            sb.append(text).append("\n");
             segmentCount++;
+        }
+
+        if (segmentCount == 0) {
+            // Fallback for <p t="12345" ...> XML format
+            java.util.regex.Matcher pMatcher = Pattern.compile("<p\\s+t=\"(\\d+)\"[^>]*>(.*?)</p>", Pattern.DOTALL).matcher(xml);
+            while (pMatcher.find()) {
+                String text = decodeHtmlEntities(pMatcher.group(2)).replaceAll("<[^>]+>", "").replace("\n", " ").trim();
+                if (text.isEmpty()) continue;
+                sb.append(text).append("\n");
+                segmentCount++;
+            }
         }
 
         if (segmentCount == 0) {
@@ -426,6 +434,7 @@ public class TranscriptService {
         String title = "YouTube Video";
         String description = "";
         String author = "YouTube Creator";
+        String duration = "Unknown Duration";
         List<String> keywords = new ArrayList<>();
 
         try {
@@ -459,12 +468,18 @@ public class TranscriptService {
                     if (videoDetails.has("title")) title = videoDetails.path("title").asText(title);
                     if (videoDetails.has("shortDescription")) description = videoDetails.path("shortDescription").asText(description);
                     if (videoDetails.has("author")) author = videoDetails.path("author").asText(author);
+                    if (videoDetails.has("lengthSeconds")) {
+                        long totalSecs = videoDetails.path("lengthSeconds").asLong(0);
+                        long h = totalSecs / 3600;
+                        long m = (totalSecs % 3600) / 60;
+                        duration = (h > 0) ? String.format("%d Hours %d Minutes", h, m) : String.format("%d Minutes", m);
+                    }
                     if (videoDetails.has("keywords") && videoDetails.path("keywords").isArray()) {
                         for (JsonNode kw : videoDetails.path("keywords")) {
                             keywords.add(kw.asText());
                         }
                     }
-                    return new VideoMetadata(title, description, author, keywords);
+                    return new VideoMetadata(title, description, author, duration, keywords);
                 }
             }
         } catch (Exception e) {
@@ -472,7 +487,7 @@ public class TranscriptService {
         }
 
         title = fetchVideoTitle(videoId);
-        return new VideoMetadata(title, description, author, keywords);
+        return new VideoMetadata(title, description, author, duration, keywords);
     }
 
     // ── Extract Video ID from URL ───────────────────────────────────────

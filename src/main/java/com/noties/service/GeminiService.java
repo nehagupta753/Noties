@@ -364,9 +364,13 @@ public class GeminiService {
                 
                 CRITICAL INSTRUCTIONS & ACCURACY GUARDRAILS:
                 1. TOPIC & CONTENT STRICTNESS: Generate notes ONLY and EXCLUSIVELY from the provided transcript below for the video titled "%s".
-                2. NO TOPIC SWITCHING: Do NOT change the subject, do NOT invent another topic (e.g. C++, Python, Deep Learning, or general computer science unless explicitly present in this transcript), and do NOT reuse knowledge from other videos.
-                3. INSUFFICIENT DATA RULE: If the provided transcript is empty or insufficient, state: "The transcript provided is insufficient to generate study notes for this video."
-                4. FULL CHRONOLOGICAL COVERAGE: Cover every concept, formula, mechanism, code snippet, definition, and insight from start to end of this transcript. Do NOT truncate or rush through later topics.
+                2. NO TOPIC SWITCHING: Do NOT change the subject, do NOT invent another topic, and do NOT reuse knowledge from other videos.
+                3. TIMELINE & MODULE TIMESTAMPS:
+                   - At the very top of Part 1 (Detailed Study Notes), include a "⏱️ Video Timeline & Module Map" table or index listing every module with its start timestamp in [mm:ss] or [hh:mm:ss] format.
+                   - Every top-level module header (##) and sub-topic header (###) MUST include its exact start timestamp extracted from the transcript, e.g., "## 📍 [04:15] Module 2: Components & Props".
+                4. FULL CHRONOLOGICAL COVERAGE TILL THE VERY END (0:00 TO END):
+                   - Cover every concept, formula, mechanism, code snippet, definition, and insight from 0:00 to the VERY LAST SECOND of the transcript.
+                   - Do NOT cut off early, do NOT stop midway, and do NOT skip the ending summary/conclusion.
                 5. RICH FORMATTING & HIERARCHY:
                    - Use clean markdown `#`, `##`, `###` headers for logical module separation.
                    - Use bold text for key terms, definitions, and important syntax.
@@ -378,14 +382,14 @@ public class GeminiService {
                 ---
                 
                 **PART 1: Detailed Study Notes**
-                Write a complete, beautifully structured, thorough textbook-grade reference guide based ONLY on the transcript.
+                Write a complete, beautifully structured, thorough textbook-grade reference guide based ONLY on the transcript from start (0:00) to the very end of the video.
                 
                 Then write EXACTLY this separator line on its own line:
                 ===REVISION_NOTES===
                 
                 **PART 2: Quick Revision & Exam Cheat Sheet**
                 Create an exhaustive, high-yield summary designed for rapid review based ONLY on the transcript:
-                - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept, chronologically.
+                - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept, chronologically with start timestamps [mm:ss].
                 - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions from this transcript.
                 - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas from this transcript.
                 - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`) based on this transcript.
@@ -401,15 +405,15 @@ public class GeminiService {
                 You are a master educator and textbook author.
                 You are given PART %d of %d of the transcript for the video titled "%s".
                 
-                CRITICAL GUARDRAIL:
-                Generate exhaustive study notes covering EVERY concept in THIS SECTION ONLY.
-                Do NOT change the topic or introduce unrelated subjects. Generate content strictly from this transcript chunk.
+                CRITICAL GUARDRAILS:
+                1. Include start timestamps in [mm:ss] or [hh:mm:ss] format for every module header (## 📍 [mm:ss] Topic, ### ⏱️ [mm:ss] Subtopic) in this section.
+                2. Cover EVERY concept in THIS SECTION from the first line to the very last line of this chunk till the end. Do NOT skip details.
+                3. Do NOT change the topic or introduce unrelated subjects.
                 
                 FORMATTING RULES:
-                - Use clear markdown headers (`##`, `###`), bold keywords, and clean bulleted explanations.
+                - Use clear markdown headers with timestamps (`## 📍 [mm:ss] Topic`, `### ⏱️ [mm:ss] Subtopic`), bold keywords, and clean bulleted explanations.
                 - For programming/math: write full, commented code blocks or formulas with line-by-line intuition.
                 - Include `✅ **Key Takeaway**` and `💡 **Pro Tip**` callouts.
-                - Cover from the very first line to the very last line of this chunk. Do not skip details.
                 - Do not include conversational filler or meta intros.
                 
                 ---
@@ -424,14 +428,14 @@ public class GeminiService {
                 You are a master educator and revision guide specialist.
                 Below are detailed study notes compiled from %d sections of the video titled "%s".
                 
-                Create an EXHAUSTIVE, BEAUTIFULLY ORGANIZED Quick Revision Sheet covering ALL concepts from ALL %d parts of this video.
-                STRICT RULE: Do NOT introduce unrelated topics outside of this video's notes.
+                Create an EXHAUSTIVE, BEAUTIFULLY ORGANIZED Quick Revision Sheet covering ALL concepts from ALL %d parts of this video from 0:00 to the very end of the video.
+                Include start timestamps [mm:ss] for every topic in the recap table/list.
                 
                 STRUCTURE:
                 # 🚀 Quick Revision & Exam Preparation Guide: %s
                 
-                ## 📚 Comprehensive Topic Recap
-                - Go through every single module/topic from Part 1 to Part %d in chronological order.
+                ## ⏱️ Comprehensive Video Timeline & Topic Recap
+                - Go through every single module/topic from Part 1 to Part %d in chronological order with start timestamps [mm:ss].
                 - Provide 1-2 punchy, high-yield bullet points summarizing each key takeaway.
                 
                 ## ⚡ Core Principles & Key Definitions
@@ -469,8 +473,8 @@ public class GeminiService {
                 
                 CRITICAL INSTRUCTIONS & STRICT TOPIC GUARDRAILS:
                 1. STRICT TOPIC COMPLIANCE: Generate notes ONLY and EXCLUSIVELY about the exact topic of THIS video titled "%s".
-                2. NO TOPIC DRIFT: Do NOT change the subject, do NOT invent an unrelated topic (e.g., do NOT generate C++ notes if this video is about React, and do NOT generate Python notes if this video is about C++), and do NOT reuse knowledge from other videos.
-                3. FULL EXHAUSTIVE COVERAGE: Write a complete, thorough, textbook-grade study guide covering all key concepts, formulas, code syntax, mechanisms, and key takeaways associated with this video's topic.
+                2. TIMELINE & MODULE STRUCTURE: Include a "⏱️ Video Timeline & Module Map" at the beginning of Part 1 organizing the course modules chronologically with estimated start timestamps [mm:ss]. Every module header (## and ###) must include its start timestamp.
+                3. FULL END-TO-END COVERAGE: Generate notes covering all sections, code examples, concepts, and conclusions from start to end of this video's curriculum.
                 4. RICH FORMATTING & HIERARCHY:
                    - Use clean markdown `#`, `##`, `###` headers for logical module separation.
                    - Use bold text for key terms, definitions, and important syntax.
@@ -482,14 +486,14 @@ public class GeminiService {
                 ---
                 
                 **PART 1: Detailed Study Notes**
-                Write a complete, beautifully structured, thorough textbook-grade reference guide based strictly on this video's topic ("%s").
+                Write a complete, beautifully structured, thorough textbook-grade reference guide based strictly on this video's topic ("%s") from start to finish.
                 
                 Then write EXACTLY this separator line on its own line:
                 ===REVISION_NOTES===
                 
                 **PART 2: Quick Revision & Exam Cheat Sheet**
                 Create an exhaustive, high-yield summary designed for rapid review based strictly on this video's topic:
-                - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept.
+                - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept with module timestamps [mm:ss].
                 - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions from this topic.
                 - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas for this topic.
                 - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`) based on this video's topic.

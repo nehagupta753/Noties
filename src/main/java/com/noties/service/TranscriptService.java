@@ -118,13 +118,18 @@ public class TranscriptService {
             var fragments = content.getContent();
             int segmentCount = fragments.size();
 
-            // Format fragments with timestamps: [mm:ss] Text
+            // Format fragments with timestamps: [mm:ss] or [hh:mm:ss] Text
             StringBuilder sb = new StringBuilder();
             for (var frag : fragments) {
                 double start = frag.getStart();
-                int mins = (int) (start / 60);
+                int hours = (int) (start / 3600);
+                int mins = (int) ((start % 3600) / 60);
                 int secs = (int) (start % 60);
-                sb.append(String.format("[%d:%02d] %s\n", mins, secs, frag.getText()));
+                if (hours > 0) {
+                    sb.append(String.format("[%d:%02d:%02d] %s\n", hours, mins, secs, frag.getText()));
+                } else {
+                    sb.append(String.format("[%02d:%02d] %s\n", mins, secs, frag.getText()));
+                }
             }
 
             log.info("Transcript fetched successfully ({} segments)", segmentCount);

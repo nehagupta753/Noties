@@ -116,7 +116,7 @@ public class NotesController {
                     log.info("[Req:{}] Transcript unavailable. Generating notes from video outline and metadata for '{}'", requestId, title);
                     sendProgress(emitter, "Analyzing video outline & content structure...", 35);
 
-                    var notes = gemini.generateNotesFromMetadata(title, description, author, duration, keywords);
+                    var notes = gemini.generateNotesFromMetadata(title, description, author, duration, keywords, (msg, prog) -> sendProgress(emitter, msg, prog));
                     detailedNotes = notes.getOrDefault("detailed", "");
                     revisionNotes = notes.getOrDefault("revision", "");
                 }

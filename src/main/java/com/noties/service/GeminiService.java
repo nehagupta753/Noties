@@ -64,6 +64,11 @@ public class GeminiService {
         }
     }
 
+    @FunctionalInterface
+    public interface ProgressListener {
+        void onProgress(String message, int percent);
+    }
+
     // ── Public API Methods ──────────────────────────────────────────────
 
     // Generate detailed notes and revision sheet for a short video
@@ -71,7 +76,7 @@ public class GeminiService {
         String prompt = buildCombinedNotesPrompt(videoTitle, transcript);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 65536)
+                "generationConfig", Map.of("maxOutputTokens", 8192)
         );
 
         String response = callWithRetry(body, null);
@@ -87,7 +92,7 @@ public class GeminiService {
         String prompt = buildChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 65536)
+                "generationConfig", Map.of("maxOutputTokens", 8192)
         );
         return callWithRetry(body, chunkIndex);
     }
@@ -97,61 +102,98 @@ public class GeminiService {
         String prompt = buildMergePrompt(videoTitle, allChunkNotes);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 65536)
+                "generationConfig", Map.of("maxOutputTokens", 8192)
         );
         return callWithRetry(body, null);
     }
 
-    // Generate detailed notes and revision sheet from video metadata (title, description, author, duration, keywords)
+    // Overload without listener for backwards compatibility
     public Map<String, String> generateNotesFromMetadata(String videoTitle, String description, String author, String duration, List<String> keywords) {
+        return generateNotesFromMetadata(videoTitle, description, author, duration, keywords, null);
+    }
+
+    // Generate detailed notes and revision sheet from video metadata (title, description, author, duration, keywords)
+    public Map<String, String> generateNotesFromMetadata(String videoTitle, String description, String author, String duration, List<String> keywords, ProgressListener listener) {
         boolean isLongCourse = duration != null && (duration.contains("Hours") || duration.contains("hour") || duration.contains("hr"));
 
         if (isLongCourse) {
             log.info("Long full-course video detected in metadata mode (duration: {}). Generating 4 comprehensive course parts + revision sheet...", duration);
+            List<String> partsList = new ArrayList<>();
 
             // Part 1: Foundations & Core Architecture
-            String prompt1 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1);
-            String part1Notes = callWithRetry(Map.of(
-                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt1)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
-            ), null);
+            if (listener != null) listener.onProgress("Generating Part 1 of 4: Foundations & Core Architecture...", 35);
+            try {
+                String prompt1 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1);
+                String p1 = callWithRetry(Map.of(
+                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt1)))),
+                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                ), null);
+                if (p1 != null && !p1.isBlank()) partsList.add(p1.trim());
+            } catch (Exception e) {
+                log.warn("Metadata Part 1 generation warning: {}", e.getMessage());
+            }
 
             // Part 2: State Management, Forms & Effect Hooks
-            String prompt2 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2);
-            String part2Notes = callWithRetry(Map.of(
-                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt2)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
-            ), null);
+            if (listener != null) listener.onProgress("Generating Part 2 of 4: State Management & Essential Hooks...", 50);
+            try {
+                String prompt2 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2);
+                String p2 = callWithRetry(Map.of(
+                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt2)))),
+                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                ), null);
+                if (p2 != null && !p2.isBlank()) partsList.add(p2.trim());
+            } catch (Exception e) {
+                log.warn("Metadata Part 2 generation warning: {}", e.getMessage());
+            }
 
             // Part 3: Advanced Hooks, Routing & Global State Management
-            String prompt3 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3);
-            String part3Notes = callWithRetry(Map.of(
-                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt3)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
-            ), null);
+            if (listener != null) listener.onProgress("Generating Part 3 of 4: Advanced Hooks, Routing & Global State...", 65);
+            try {
+                String prompt3 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3);
+                String p3 = callWithRetry(Map.of(
+                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt3)))),
+                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                ), null);
+                if (p3 != null && !p3.isBlank()) partsList.add(p3.trim());
+            } catch (Exception e) {
+                log.warn("Metadata Part 3 generation warning: {}", e.getMessage());
+            }
 
             // Part 4: Real-World Projects, Performance Optimization & Production Deployment
-            String prompt4 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4);
-            String part4Notes = callWithRetry(Map.of(
-                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt4)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
-            ), null);
+            if (listener != null) listener.onProgress("Generating Part 4 of 4: Real-World Projects & Production Deployment...", 80);
+            try {
+                String prompt4 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4);
+                String p4 = callWithRetry(Map.of(
+                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt4)))),
+                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                ), null);
+                if (p4 != null && !p4.isBlank()) partsList.add(p4.trim());
+            } catch (Exception e) {
+                log.warn("Metadata Part 4 generation warning: {}", e.getMessage());
+            }
 
             // Part 5: Comprehensive Revision Sheet
-            String promptRev = buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
-            String revisionNotes = callWithRetry(Map.of(
-                    "contents", List.of(Map.of("parts", List.of(Map.of("text", promptRev)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
-            ), null);
+            if (listener != null) listener.onProgress("Creating comprehensive Quick Revision Sheet...", 90);
+            String revisionNotes = "# Quick Revision\n\n*Included in detailed notes above.*";
+            try {
+                String promptRev = buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
+                revisionNotes = callWithRetry(Map.of(
+                        "contents", List.of(Map.of("parts", List.of(Map.of("text", promptRev)))),
+                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                ), null);
+            } catch (Exception e) {
+                log.warn("Metadata Revision generation warning: {}", e.getMessage());
+            }
 
-            String detailedNotes = part1Notes.trim() + "\n\n---\n\n" + part2Notes.trim() + "\n\n---\n\n" + part3Notes.trim() + "\n\n---\n\n" + part4Notes.trim();
+            String detailedNotes = String.join("\n\n---\n\n", partsList);
             return Map.of("detailed", detailedNotes, "revision", revisionNotes.trim());
 
         } else {
+            if (listener != null) listener.onProgress("Generating complete study guide from video outline...", 50);
             String prompt = buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords);
             Map<String, Object> body = Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
+                    "generationConfig", Map.of("maxOutputTokens", 8192)
             );
 
             String response = callWithRetry(body, null);

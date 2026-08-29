@@ -104,18 +104,52 @@ public class GeminiService {
 
     // Generate detailed notes and revision sheet from video metadata (title, description, author, duration, keywords)
     public Map<String, String> generateNotesFromMetadata(String videoTitle, String description, String author, String duration, List<String> keywords) {
-        String prompt = buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords);
-        Map<String, Object> body = Map.of(
-                "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 65536)
-        );
+        boolean isLongCourse = duration != null && (duration.contains("Hours") || duration.contains("hour") || duration.contains("hr"));
 
-        String response = callWithRetry(body, null);
-        String[] parts = response.split("===REVISION_NOTES===");
-        String detailed = parts[0].trim();
-        String revision = parts.length > 1 ? parts[1].trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
+        if (isLongCourse) {
+            log.info("Long course detected in metadata mode (duration: {}). Processing in 2 detailed parts + revision sheet...", duration);
 
-        return Map.of("detailed", detailed, "revision", revision);
+            // Part 1: Foundations & Core Concepts
+            String prompt1 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1);
+            Map<String, Object> body1 = Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt1)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            );
+            String part1Notes = callWithRetry(body1, null);
+
+            // Part 2: Advanced Topics, Real-World Projects & Deployment
+            String prompt2 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2);
+            Map<String, Object> body2 = Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt2)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            );
+            String part2Notes = callWithRetry(body2, null);
+
+            // Part 3: Revision Sheet
+            String promptRev = buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
+            Map<String, Object> bodyRev = Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", promptRev)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            );
+            String revisionNotes = callWithRetry(bodyRev, null);
+
+            String detailedNotes = part1Notes.trim() + "\n\n---\n\n" + part2Notes.trim();
+            return Map.of("detailed", detailedNotes, "revision", revisionNotes.trim());
+
+        } else {
+            String prompt = buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords);
+            Map<String, Object> body = Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            );
+
+            String response = callWithRetry(body, null);
+            String[] parts = response.split("===REVISION_NOTES===");
+            String detailed = parts[0].trim();
+            String revision = parts.length > 1 ? parts[1].trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
+
+            return Map.of("detailed", detailed, "revision", revision);
+        }
     }
 
     // Chat with Panda mascot
@@ -501,5 +535,68 @@ public class GeminiService {
                 - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas for this topic.
                 - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`) based on this video's topic.
                 """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, descText, videoTitle, durText, durText, durText, videoTitle, durText, durText, durText);
+    }
+
+    private String buildMetadataPartPrompt(String videoTitle, String description, String author, String duration, List<String> keywords, int partNum) {
+        String kwList = (keywords != null && !keywords.isEmpty()) ? String.join(", ", keywords) : "N/A";
+        String descText = (description != null && !description.isBlank()) ? description.trim() : "No detailed description provided.";
+        String durText = (duration != null && !duration.isBlank()) ? duration : "Full Length Course";
+
+        String sectionFocus = (partNum == 1)
+                ? "PART 1 OF 2: Foundations, Core Fundamentals & Basic Hooks (Beginner to Intermediate topics: Environment setup, JSX, Components, Props, useState, useEffect, Event Handling, Forms, and Basic Hooks)."
+                : "PART 2 OF 2: Advanced Concepts, Routing, Global State Management, Project Building & Production Deployment (Advanced Hooks: useRef/useMemo/useCallback, React Router, Context API/Redux, API Integration, Real-World Project Architecture, Performance Optimization, and Final Production Build & Deployment). Conclude with a '🎓 Final Course Conclusion & Master Takeaways' section.";
+
+        return """
+                You are a master educator and textbook author creating high-yield, aesthetic study notes for students.
+                You are creating study notes for a student watching a YouTube video.
+                
+                VIDEO INFORMATION:
+                - Title: "%s"
+                - Total Video Duration: %s
+                - Channel / Author: %s
+                - Topic Keywords: %s
+                
+                DETAILED VIDEO OUTLINE & DESCRIPTION:
+                %s
+                
+                CRITICAL INSTRUCTIONS FOR THIS SECTION:
+                1. FOCUS REQUIREMENT: %s
+                2. STRICT TOPIC COMPLIANCE: Generate notes ONLY and EXCLUSIVELY about the exact topic of THIS video titled "%s".
+                3. RICH FORMATTING & HIERARCHY:
+                   - Use clean markdown `#`, `##`, `###` headers for logical module separation.
+                   - Use bold text for key terms, definitions, and important syntax.
+                   - For tutorials/technical topics: Provide clean, commented, fully explained code blocks or command sequences.
+                   - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
+                4. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the structured module headers and content.
+                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, descText, sectionFocus, videoTitle);
+    }
+
+    private String buildMetadataRevisionPrompt(String videoTitle, String description, String author, String duration, List<String> keywords) {
+        String kwList = (keywords != null && !keywords.isEmpty()) ? String.join(", ", keywords) : "N/A";
+        String descText = (description != null && !description.isBlank()) ? description.trim() : "No detailed description provided.";
+        String durText = (duration != null && !duration.isBlank()) ? duration : "Full Length Course";
+
+        return """
+                You are a master educator and revision guide specialist.
+                Create an exhaustive, high-yield Quick Revision Sheet covering the ENTIRE %s course titled "%s" (%s long) from start to finish.
+                
+                STRUCTURE:
+                # 🚀 Quick Revision & Exam Preparation Guide: %s
+                
+                ## 📚 Comprehensive Course Module Recap
+                - Bulleted breakdown covering all modules from Beginner Fundamentals to Advanced State, Projects & Deployment across the entire %s course.
+                - 1-2 punchy, high-yield bullet points summarizing each key takeaway.
+                
+                ## ⚡ Core Principles & Key Definitions
+                - Bulleted list of every crucial term, definition, law, or pattern introduced in this course.
+                
+                ## 📝 Syntax, Commands & Formulas Cheat Sheet
+                - Provide code syntax tables, command cheat sheets, or key formulas for this topic.
+                
+                ## 🧠 Flashcard Recall Q&A
+                - Minimum 15-20 rapid-fire flashcards formatted as:
+                  - **Q:** [Question]
+                    **A:** [Direct, accurate answer]
+                """.formatted(videoTitle, videoTitle, durText, videoTitle, durText);
     }
 }

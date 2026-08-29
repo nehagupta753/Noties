@@ -107,33 +107,44 @@ public class GeminiService {
         boolean isLongCourse = duration != null && (duration.contains("Hours") || duration.contains("hour") || duration.contains("hr"));
 
         if (isLongCourse) {
-            log.info("Long course detected in metadata mode (duration: {}). Processing in 2 detailed parts + revision sheet...", duration);
+            log.info("Long full-course video detected in metadata mode (duration: {}). Generating 4 comprehensive course parts + revision sheet...", duration);
 
-            // Part 1: Foundations & Core Concepts
+            // Part 1: Foundations & Core Architecture
             String prompt1 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1);
-            Map<String, Object> body1 = Map.of(
+            String part1Notes = callWithRetry(Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt1)))),
                     "generationConfig", Map.of("maxOutputTokens", 65536)
-            );
-            String part1Notes = callWithRetry(body1, null);
+            ), null);
 
-            // Part 2: Advanced Topics, Real-World Projects & Deployment
+            // Part 2: State Management, Forms & Effect Hooks
             String prompt2 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2);
-            Map<String, Object> body2 = Map.of(
+            String part2Notes = callWithRetry(Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt2)))),
                     "generationConfig", Map.of("maxOutputTokens", 65536)
-            );
-            String part2Notes = callWithRetry(body2, null);
+            ), null);
 
-            // Part 3: Revision Sheet
+            // Part 3: Advanced Hooks, Routing & Global State Management
+            String prompt3 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3);
+            String part3Notes = callWithRetry(Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt3)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            ), null);
+
+            // Part 4: Real-World Projects, Performance Optimization & Production Deployment
+            String prompt4 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4);
+            String part4Notes = callWithRetry(Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt4)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            ), null);
+
+            // Part 5: Comprehensive Revision Sheet
             String promptRev = buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
-            Map<String, Object> bodyRev = Map.of(
+            String revisionNotes = callWithRetry(Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", promptRev)))),
                     "generationConfig", Map.of("maxOutputTokens", 65536)
-            );
-            String revisionNotes = callWithRetry(bodyRev, null);
+            ), null);
 
-            String detailedNotes = part1Notes.trim() + "\n\n---\n\n" + part2Notes.trim();
+            String detailedNotes = part1Notes.trim() + "\n\n---\n\n" + part2Notes.trim() + "\n\n---\n\n" + part3Notes.trim() + "\n\n---\n\n" + part4Notes.trim();
             return Map.of("detailed", detailedNotes, "revision", revisionNotes.trim());
 
         } else {
@@ -542,9 +553,12 @@ public class GeminiService {
         String descText = (description != null && !description.isBlank()) ? description.trim() : "No detailed description provided.";
         String durText = (duration != null && !duration.isBlank()) ? duration : "Full Length Course";
 
-        String sectionFocus = (partNum == 1)
-                ? "PART 1 OF 2: Foundations, Core Fundamentals & Basic Hooks (Beginner to Intermediate topics: Environment setup, JSX, Components, Props, useState, useEffect, Event Handling, Forms, and Basic Hooks)."
-                : "PART 2 OF 2: Advanced Concepts, Routing, Global State Management, Project Building & Production Deployment (Advanced Hooks: useRef/useMemo/useCallback, React Router, Context API/Redux, API Integration, Real-World Project Architecture, Performance Optimization, and Final Production Build & Deployment). Conclude with a '🎓 Final Course Conclusion & Master Takeaways' section.";
+        String sectionFocus = switch (partNum) {
+            case 1 -> "PART 1 OF 4: FOUNDATIONS & CORE ARCHITECTURE (Environment Setup with Node/Vite/npm, JSX Rules & Transpilation, Virtual DOM & Fiber Engine, Functional Components & Composition, Props, Component Trees, and Unidirectional Data Flow). Write thorough textbook explanations with full commented code snippets for every module.";
+            case 2 -> "PART 2 OF 4: STATE MANAGEMENT, FORMS & EFFECT HOOKS (useState Hook in-depth, Immutable state updates, Event Handling & Forms with e.preventDefault, Conditional Rendering patterns, List Rendering & Key reconciliation, and useEffect Hook lifecycle & cleanup functions). Write thorough textbook explanations with full commented code snippets for every module.";
+            case 3 -> "PART 3 OF 4: ADVANCED HOOKS, ROUTING & GLOBAL STATE (Advanced Performance Hooks: useRef for DOM & mutable refs, useMemo for memoization, useCallback for function reference stability; Building Custom Hooks; React Router DOM v6+ with Dynamic Params, Nested Routes & Protected Routes; Context API & Provider Pattern; Global State with Redux Toolkit / Zustand; and Async Data Fetching with Axios/fetch, Loading/Error States). Write thorough textbook explanations with full commented code snippets for every module.";
+            default -> "PART 4 OF 4: REAL-WORLD PROJECTS, ARCHITECTURE, OPTIMIZATION & PRODUCTION DEPLOYMENT (Scalable Project Folder Architecture, Error Boundaries, Code Splitting with React.lazy & Suspense, Re-render Prevention Strategies, Environment Variables .env, Production Build with Vite/dist, and Cloud Deployment to Vercel/Netlify/Render/AWS). Conclude with a '🎓 Master Course Summary & Final Key Takeaways' section.";
+        };
 
         return """
                 You are a master educator and textbook author creating high-yield, aesthetic study notes for students.

@@ -74,8 +74,8 @@ public class NotesController {
                 String detailedNotes;
                 String revisionNotes;
 
-                int CHUNK_THRESHOLD = 60_000;
-                int CHUNK_SIZE = 50_000;
+                int CHUNK_THRESHOLD = 80_000;
+                int CHUNK_SIZE = 100_000;
 
                 if (hasTranscript && transcript != null && !transcript.isBlank()) {
                     sendProgress(emitter, "Transcript validated! Generating study notes...", 30);
@@ -89,33 +89,26 @@ public class NotesController {
                         revisionNotes = notes.getOrDefault("revision", "");
                     } else {
                         List<String> chunks = transcripts.splitTranscriptIntoChunks(transcript, CHUNK_SIZE);
-                        log.info("[Req:{}] Long video: processing {} chunks in parallel", requestId, chunks.size());
-                        sendProgress(emitter, "Long video detected! Processing in " + chunks.size() + " parts...", 35);
-
-                        CompletableFuture<String>[] futures = new CompletableFuture[chunks.size()];
-
-                        for (int i = 0; i < chunks.size(); i++) {
-                            final int idx = i;
-                            final String chunk = chunks.get(i);
-
-                            futures[idx] = CompletableFuture.supplyAsync(() -> {
-                                String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size());
-                                int progress = 35 + Math.round(((float) (idx + 1) / chunks.size()) * 45);
-                                sendProgress(emitter, "Generated notes for part " + (idx + 1) + " of " + chunks.size() + "...", progress);
-                                return chunkNotes;
-                            }, executor);
-                        }
-
-                        CompletableFuture.allOf(futures).join();
+                        log.info("[Req:{}] Long video detected ({} chars): processing {} parts sequentially",
+                                requestId, transcript.length(), chunks.size());
+                        sendProgress(emitter, "Long video detected! Processing all " + chunks.size() + " course parts from start to finish...", 30);
 
                         List<String> chunkResults = new ArrayList<>();
-                        for (var f : futures) {
-                            chunkResults.add(f.join());
+                        for (int i = 0; i < chunks.size(); i++) {
+                            int idx = i;
+                            String chunk = chunks.get(i);
+                            int progress = 30 + Math.round(((float) (idx + 1) / chunks.size()) * 50);
+                            sendProgress(emitter, "Generating notes for Part " + (idx + 1) + " of " + chunks.size() + "...", progress);
+
+                            String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size());
+                            if (chunkNotes != null && !chunkNotes.isBlank()) {
+                                chunkResults.add(chunkNotes);
+                            }
                         }
 
                         detailedNotes = String.join("\n\n---\n\n", chunkResults);
 
-                        sendProgress(emitter, "Creating comprehensive revision notes...", 85);
+                        sendProgress(emitter, "Creating comprehensive revision sheet for all " + chunks.size() + " parts...", 85);
                         revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults);
                     }
                 } else {

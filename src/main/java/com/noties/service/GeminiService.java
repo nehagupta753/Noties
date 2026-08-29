@@ -401,17 +401,22 @@ public class GeminiService {
     }
 
     private String buildChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks) {
+        boolean isFinalChunk = (chunkIndex == totalChunks - 1);
+        String finalInstruction = isFinalChunk ?
+                "4. CRITICAL FINAL PART REQUIREMENT: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section of the video transcript ending at the final timestamp). You MUST cover all topics and code examples up to the very LAST line of the transcript. Conclude Part 1 with a '🎓 Final Course Conclusion & Master Takeaways' section." : "";
+
         return """
                 You are a master educator and textbook author.
                 You are given PART %d of %d of the transcript for the video titled "%s".
                 
                 CRITICAL GUARDRAILS:
-                1. Include start timestamps in [mm:ss] or [hh:mm:ss] format for every module header (## 📍 [mm:ss] Topic, ### ⏱️ [mm:ss] Subtopic) in this section.
-                2. Cover EVERY concept in THIS SECTION from the first line to the very last line of this chunk till the end. Do NOT skip details.
+                1. Include start timestamps in [mm:ss] or [hh:mm:ss] format for every module header (## 📍 [timestamp] Topic, ### ⏱️ [timestamp] Subtopic) in this section.
+                2. Cover EVERY concept in THIS SECTION from the first line to the very last line of this chunk. Do NOT skip details or cut off early.
                 3. Do NOT change the topic or introduce unrelated subjects.
+                %s
                 
                 FORMATTING RULES:
-                - Use clear markdown headers with timestamps (`## 📍 [mm:ss] Topic`, `### ⏱️ [mm:ss] Subtopic`), bold keywords, and clean bulleted explanations.
+                - Use clear markdown headers with timestamps (`## 📍 [timestamp] Topic`, `### ⏱️ [timestamp] Subtopic`), bold keywords, and clean bulleted explanations.
                 - For programming/math: write full, commented code blocks or formulas with line-by-line intuition.
                 - Include `✅ **Key Takeaway**` and `💡 **Pro Tip**` callouts.
                 - Do not include conversational filler or meta intros.
@@ -419,7 +424,7 @@ public class GeminiService {
                 ---
                 Transcript Chunk %d of %d for "%s":
                 %s
-                """.formatted(chunkIndex + 1, totalChunks, videoTitle, chunkIndex + 1, totalChunks, videoTitle, chunk);
+                """.formatted(chunkIndex + 1, totalChunks, videoTitle, finalInstruction, chunkIndex + 1, totalChunks, videoTitle, chunk);
     }
 
     private String buildMergePrompt(String videoTitle, List<String> allChunkNotes) {

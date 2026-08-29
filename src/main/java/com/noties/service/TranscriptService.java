@@ -344,9 +344,14 @@ public class TranscriptService {
             String text = decodeHtmlEntities(matcher.group(2)).replace("\n", " ").trim();
             if (text.isEmpty()) continue;
 
-            int mins = (int) (start / 60);
+            int hours = (int) (start / 3600);
+            int mins = (int) ((start % 3600) / 60);
             int secs = (int) (start % 60);
-            sb.append(String.format("[%d:%02d] %s\n", mins, secs, text));
+            if (hours > 0) {
+                sb.append(String.format("[%d:%02d:%02d] %s\n", hours, mins, secs, text));
+            } else {
+                sb.append(String.format("[%02d:%02d] %s\n", mins, secs, text));
+            }
             segmentCount++;
         }
 

@@ -102,6 +102,22 @@ public class GeminiService {
         return callWithRetry(body, null);
     }
 
+    // Generate detailed notes and revision sheet from video metadata (title, description, author, keywords)
+    public Map<String, String> generateNotesFromMetadata(String videoTitle, String description, String author, List<String> keywords) {
+        String prompt = buildMetadataNotesPrompt(videoTitle, description, author, keywords);
+        Map<String, Object> body = Map.of(
+                "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
+                "generationConfig", Map.of("maxOutputTokens", 65536)
+        );
+
+        String response = callWithRetry(body, null);
+        String[] parts = response.split("===REVISION_NOTES===");
+        String detailed = parts[0].trim();
+        String revision = parts.length > 1 ? parts[1].trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
+
+        return Map.of("detailed", detailed, "revision", revision);
+    }
+
     // Chat with Panda mascot
     public String pandaChat(String message, List<Map<String, String>> history, boolean isExplanation) {
         String query = isExplanation ? "Please explain this selected concept: \"" + message + "\"" : message;
@@ -433,5 +449,50 @@ public class GeminiService {
                 Compiled Notes from all parts of "%s":
                 %s
                 """.formatted(allChunkNotes.size(), videoTitle, allChunkNotes.size(), videoTitle, allChunkNotes.size(), videoTitle, combined);
+    }
+
+    private String buildMetadataNotesPrompt(String videoTitle, String description, String author, List<String> keywords) {
+        String kwList = (keywords != null && !keywords.isEmpty()) ? String.join(", ", keywords) : "N/A";
+        String descText = (description != null && !description.isBlank()) ? description.trim() : "No detailed description provided.";
+
+        return """
+                You are a master educator and textbook author creating high-yield, aesthetic study notes for students.
+                You are creating study notes for a student watching a YouTube video.
+                
+                VIDEO INFORMATION:
+                - Title: "%s"
+                - Channel / Author: %s
+                - Topic Keywords: %s
+                
+                DETAILED VIDEO OUTLINE & DESCRIPTION:
+                %s
+                
+                CRITICAL INSTRUCTIONS & STRICT TOPIC GUARDRAILS:
+                1. STRICT TOPIC COMPLIANCE: Generate notes ONLY and EXCLUSIVELY about the exact topic of THIS video titled "%s".
+                2. NO TOPIC DRIFT: Do NOT change the subject, do NOT invent an unrelated topic (e.g., do NOT generate C++ notes if this video is about React, and do NOT generate Python notes if this video is about C++), and do NOT reuse knowledge from other videos.
+                3. FULL EXHAUSTIVE COVERAGE: Write a complete, thorough, textbook-grade study guide covering all key concepts, formulas, code syntax, mechanisms, and key takeaways associated with this video's topic.
+                4. RICH FORMATTING & HIERARCHY:
+                   - Use clean markdown `#`, `##`, `###` headers for logical module separation.
+                   - Use bold text for key terms, definitions, and important syntax.
+                   - Use bullet points and numbered lists for readability.
+                   - For tutorials/technical topics: Provide clean, commented, fully explained code blocks or command sequences.
+                   - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
+                5. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the main title and structured content.
+                
+                ---
+                
+                **PART 1: Detailed Study Notes**
+                Write a complete, beautifully structured, thorough textbook-grade reference guide based strictly on this video's topic ("%s").
+                
+                Then write EXACTLY this separator line on its own line:
+                ===REVISION_NOTES===
+                
+                **PART 2: Quick Revision & Exam Cheat Sheet**
+                Create an exhaustive, high-yield summary designed for rapid review based strictly on this video's topic:
+                - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept.
+                - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions from this topic.
+                - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas for this topic.
+                - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`) based on this video's topic.
+                """.formatted(videoTitle, author != null ? author : "YouTube Creator", kwList, descText, videoTitle, videoTitle);
     }
 }

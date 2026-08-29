@@ -38,8 +38,57 @@ public class TranscriptService {
             Pattern.compile("^([a-zA-Z0-9_-]{11})$"),
     };
 
-    // Immutable record to return transcript text and segment count together
+    // Immutable records to return transcript text and video metadata together
     public record TranscriptResult(String text, int segmentCount) {}
+
+    public record VideoMetadata(String title, String description, String author, List<String> keywords) {}
+
+    public record VideoData(
+            String videoId,
+            String title,
+            String description,
+            String author,
+            List<String> keywords,
+            String transcriptText,
+            int segmentCount,
+            boolean hasTranscript
+    ) {}
+
+    // ── Fetch Video Data & Metadata ─────────────────────────────────────
+
+    public VideoData fetchVideoData(String videoId) {
+        log.info("Fetching video data & metadata for video: {}", videoId);
+        VideoMetadata metadata = fetchVideoMetadata(videoId);
+
+        try {
+            TranscriptResult result = fetchTranscript(videoId);
+            if (result != null && result.text() != null && !result.text().isBlank()) {
+                return new VideoData(
+                        videoId,
+                        metadata.title(),
+                        metadata.description(),
+                        metadata.author(),
+                        metadata.keywords(),
+                        result.text(),
+                        result.segmentCount(),
+                        true
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Transcript unavailable for video {}: {}. Using video metadata mode.", videoId, e.getMessage());
+        }
+
+        return new VideoData(
+                videoId,
+                metadata.title(),
+                metadata.description(),
+                metadata.author(),
+                metadata.keywords(),
+                "",
+                0,
+                false
+        );
+    }
 
     // ── Fetch YouTube Transcript ────────────────────────────────────────
 
@@ -90,8 +139,13 @@ public class TranscriptService {
                 try {
                     return fetchTranscriptViaPageScrape(videoId);
                 } catch (Exception fallback2) {
-                    log.error("All transcript fetch methods failed for {}", videoId);
-                    throw new RuntimeException("Could not retrieve video captions/subtitles", e);
+                    log.warn("Page scrape fallback failed for {}: {}. Trying timedtext API fallback...", videoId, fallback2.getMessage());
+                    try {
+                        return fetchTranscriptViaTimedText(videoId);
+                    } catch (Exception fallback3) {
+                        log.warn("All transcript fetch methods failed for {}", videoId);
+                        throw new RuntimeException("Could not retrieve video captions/subtitles", e);
+                    }
                 }
             }
         }
@@ -341,6 +395,74 @@ public class TranscriptService {
             log.warn("Could not fetch title for {}: {}", videoId, e.getMessage());
         }
         return "YouTube Video";
+    }
+
+    // ── Fallback 3: Direct TimedText API ────────────────────────────────
+
+    private TranscriptResult fetchTranscriptViaTimedText(String videoId) throws Exception {
+        String[] langs = {"en", "en-US", "en-GB", "a.en"};
+        for (String lang : langs) {
+            try {
+                String captionUrl = "https://www.youtube.com/api/timedtext?v=" + videoId + "&lang=" + lang;
+                return fetchAndParseCaptionXml(captionUrl);
+            } catch (Exception ignored) {}
+        }
+        throw new RuntimeException("TimedText API returned no captions");
+    }
+
+    // ── Fetch Video Metadata (Title, Description, Author, Keywords) ─────
+
+    public VideoMetadata fetchVideoMetadata(String videoId) {
+        String title = "YouTube Video";
+        String description = "";
+        String author = "YouTube Creator";
+        List<String> keywords = new ArrayList<>();
+
+        try {
+            String payload = """
+                    {
+                        "context": {
+                            "client": {
+                                "clientName": "WEB",
+                                "clientVersion": "2.20240530.00.00",
+                                "hl": "en",
+                                "gl": "US"
+                            }
+                        },
+                        "videoId": "%s"
+                    }
+                    """.formatted(videoId);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://www.youtube.com/youtubei/v1/player?key=" + YT_INNERTUBE_KEY + "&prettyPrint=false"))
+                    .header("Content-Type", "application/json")
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(Duration.ofSeconds(10))
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                JsonNode root = mapper.readTree(response.body());
+                JsonNode videoDetails = root.path("videoDetails");
+                if (!videoDetails.isMissingNode()) {
+                    if (videoDetails.has("title")) title = videoDetails.path("title").asText(title);
+                    if (videoDetails.has("shortDescription")) description = videoDetails.path("shortDescription").asText(description);
+                    if (videoDetails.has("author")) author = videoDetails.path("author").asText(author);
+                    if (videoDetails.has("keywords") && videoDetails.path("keywords").isArray()) {
+                        for (JsonNode kw : videoDetails.path("keywords")) {
+                            keywords.add(kw.asText());
+                        }
+                    }
+                    return new VideoMetadata(title, description, author, keywords);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("InnerTube metadata fetch failed for {}: {}", videoId, e.getMessage());
+        }
+
+        title = fetchVideoTitle(videoId);
+        return new VideoMetadata(title, description, author, keywords);
     }
 
     // ── Extract Video ID from URL ───────────────────────────────────────

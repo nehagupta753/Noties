@@ -57,32 +57,19 @@ public class NotesController {
 
         executor.submit(() -> {
             try {
-                sendProgress(emitter, "Fetching video title...", 5);
-                String title = transcripts.fetchVideoTitle(videoId);
+                sendProgress(emitter, "Analyzing video and fetching content...", 10);
+                var videoData = transcripts.fetchVideoData(videoId);
 
-                log.info("[Req:{}] Starting note generation for videoId: '{}', title: '{}'", requestId, videoId, title);
+                String title = videoData.title();
+                String description = videoData.description();
+                String author = videoData.author();
+                List<String> keywords = videoData.keywords();
+                boolean hasTranscript = videoData.hasTranscript();
+                String transcript = videoData.transcriptText();
+                int segmentCount = videoData.segmentCount();
 
-                sendProgress(emitter, "Extracting video transcript...", 10);
-                String transcript;
-                int segmentCount;
-                try {
-                    var result = transcripts.fetchTranscript(videoId);
-                    if (result == null || result.text() == null || result.text().isBlank()) {
-                        throw new RuntimeException("Transcript returned empty text");
-                    }
-                    transcript = result.text();
-                    segmentCount = result.segmentCount();
-                } catch (Exception e) {
-                    log.warn("[Req:{}] Transcript fetch failed for videoId '{}': {}. Aborting generation.", requestId, videoId, e.getMessage());
-                    sendError(emitter, "Transcript could not be fetched for this video.");
-                    return;
-                }
-
-                sendProgress(emitter, "Transcript extracted!", 15);
-
-                String preview = transcript.substring(0, Math.min(200, transcript.length())).replace("\n", " ");
-                log.info("[Req:{}] Transcript validated. Chars: {}, Segments: {}. Preview: '{}'",
-                        requestId, transcript.length(), segmentCount, preview);
+                log.info("[Req:{}] Video data retrieved for videoId '{}': title='{}', hasTranscript={}",
+                        requestId, videoId, title, hasTranscript);
 
                 String detailedNotes;
                 String revisionNotes;
@@ -90,43 +77,54 @@ public class NotesController {
                 int CHUNK_THRESHOLD = 60_000;
                 int CHUNK_SIZE = 50_000;
 
-                if (transcript.length() < CHUNK_THRESHOLD) {
-                    // Short video: single call generates both detailed notes and revision sheet
-                    sendProgress(emitter, "Generating notes with AI...", 30);
-                    var notes = gemini.generateNotes(title, transcript);
+                if (hasTranscript && transcript != null && !transcript.isBlank()) {
+                    sendProgress(emitter, "Transcript validated! Generating study notes...", 30);
+                    String preview = transcript.substring(0, Math.min(200, transcript.length())).replace("\n", " ");
+                    log.info("[Req:{}] Transcript mode. Chars: {}, Segments: {}. Preview: '{}'",
+                            requestId, transcript.length(), segmentCount, preview);
+
+                    if (transcript.length() < CHUNK_THRESHOLD) {
+                        var notes = gemini.generateNotes(title, transcript);
+                        detailedNotes = notes.getOrDefault("detailed", "");
+                        revisionNotes = notes.getOrDefault("revision", "");
+                    } else {
+                        List<String> chunks = transcripts.splitTranscriptIntoChunks(transcript, CHUNK_SIZE);
+                        log.info("[Req:{}] Long video: processing {} chunks in parallel", requestId, chunks.size());
+                        sendProgress(emitter, "Long video detected! Processing in " + chunks.size() + " parts...", 35);
+
+                        CompletableFuture<String>[] futures = new CompletableFuture[chunks.size()];
+
+                        for (int i = 0; i < chunks.size(); i++) {
+                            final int idx = i;
+                            final String chunk = chunks.get(i);
+
+                            futures[idx] = CompletableFuture.supplyAsync(() -> {
+                                String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size());
+                                int progress = 35 + Math.round(((float) (idx + 1) / chunks.size()) * 45);
+                                sendProgress(emitter, "Generated notes for part " + (idx + 1) + " of " + chunks.size() + "...", progress);
+                                return chunkNotes;
+                            }, executor);
+                        }
+
+                        CompletableFuture.allOf(futures).join();
+
+                        List<String> chunkResults = new ArrayList<>();
+                        for (var f : futures) {
+                            chunkResults.add(f.join());
+                        }
+
+                        detailedNotes = String.join("\n\n---\n\n", chunkResults);
+
+                        sendProgress(emitter, "Creating comprehensive revision notes...", 85);
+                        revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults);
+                    }
+                } else {
+                    log.info("[Req:{}] Transcript unavailable. Generating notes from video outline and metadata for '{}'", requestId, title);
+                    sendProgress(emitter, "Analyzing video outline & content structure...", 35);
+
+                    var notes = gemini.generateNotesFromMetadata(title, description, author, keywords);
                     detailedNotes = notes.getOrDefault("detailed", "");
                     revisionNotes = notes.getOrDefault("revision", "");
-                } else {
-                    // Long video: split into chunks and process in parallel
-                    List<String> chunks = transcripts.splitTranscriptIntoChunks(transcript, CHUNK_SIZE);
-                    log.info("[Req:{}] Long video: processing {} chunks in parallel", requestId, chunks.size());
-                    sendProgress(emitter, "Long video detected! Processing in " + chunks.size() + " parts...", 20);
-
-                    CompletableFuture<String>[] futures = new CompletableFuture[chunks.size()];
-
-                    for (int i = 0; i < chunks.size(); i++) {
-                        final int idx = i;
-                        final String chunk = chunks.get(i);
-
-                        futures[idx] = CompletableFuture.supplyAsync(() -> {
-                            String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size());
-                            int progress = 20 + Math.round(((float) (idx + 1) / chunks.size()) * 55);
-                            sendProgress(emitter, "Generated notes for part " + (idx + 1) + " of " + chunks.size() + "...", progress);
-                            return chunkNotes;
-                        }, executor);
-                    }
-
-                    CompletableFuture.allOf(futures).join();
-
-                    List<String> chunkResults = new ArrayList<>();
-                    for (var f : futures) {
-                        chunkResults.add(f.join());
-                    }
-
-                    detailedNotes = String.join("\n\n---\n\n", chunkResults);
-
-                    sendProgress(emitter, "Creating comprehensive revision notes...", 80);
-                    revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults);
                 }
 
                 log.info("[Req:{}] Note generation complete for videoId: '{}'", requestId, videoId);

@@ -169,23 +169,21 @@ function saveEdits() {
 // ----------------------------------------
 
 function extractVideoId(url) {
+  if (!url || typeof url !== 'string') return null;
+  const str = url.trim().replace(/^["'`]|["'`]$/g, '').trim();
+
   const patterns = [
-    /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
-    /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /(?:youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
-    /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
-    /(?:youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+    /[?&]v=([a-zA-Z0-9_-]{11})/,
+    /(?:youtu\.be\/|youtube\.com\/(?:embed|v|shorts|live)\/)([a-zA-Z0-9_-]{11})/,
     /^([a-zA-Z0-9_-]{11})$/,
   ];
 
   for (const pattern of patterns) {
-    const match = url.trim().match(pattern);
-    if (match) return match[1];
+    const match = str.match(pattern);
+    if (match && match[1]) return match[1];
   }
   return null;
 }
-
-
 
 function showVideoPreview(videoId) {
   const thumbUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
@@ -216,14 +214,44 @@ urlInput.addEventListener('input', () => {
   }
 });
 
-// Paste from clipboard
+// Paste from clipboard with multi-layered fallback
 pasteBtn.addEventListener('click', async () => {
-  try {
-    const text = await navigator.clipboard.readText();
-    urlInput.value = text;
+  let pastedText = '';
+
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    try {
+      pastedText = await navigator.clipboard.readText();
+    } catch (err) {
+      console.warn('Clipboard readText failed or was restricted:', err);
+    }
+  }
+
+  if (!pastedText) {
+    try {
+      urlInput.focus();
+      document.execCommand('paste');
+      if (urlInput.value) {
+        pastedText = urlInput.value;
+      }
+    } catch (e) {}
+  }
+
+  if (!pastedText && !urlInput.value) {
+    const userPrompt = prompt('📋 Paste your YouTube link here:');
+    if (userPrompt) {
+      pastedText = userPrompt;
+    }
+  }
+
+  if (pastedText) {
+    urlInput.value = pastedText.trim();
     urlInput.dispatchEvent(new Event('input'));
-  } catch {
     urlInput.focus();
+    showToast('Link pasted! 📋🌸');
+    triggerPandaBubble('Link pasted! Click Generate Notes 🚀🌸');
+  } else {
+    urlInput.focus();
+    showToast('Please press Ctrl+V to paste your link 🌸', 'info');
   }
 });
 
@@ -472,18 +500,18 @@ function markdownToHtml(md, isHandwritten = false) {
   // Ordered lists
   html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
 
-  // Restore Mermaid diagram blocks
-  mermaidBlocks.forEach((code, idx) => {
-    const placeholder = `___MERMAID_BLOCK_${idx}___`;
-    const diagramHtml = `<div class="handwritten-diagram"><div class="mermaid">${code}</div></div>`;
-    html = html.replace(placeholder, diagramHtml);
-  });
-
   // Paragraphs
   html = html.replace(
-    /^(?!<(?:[a-z/]|div|pre|blockquote|table|ul|ol|li|hr|h1|h2|h3|h4|h5|h6|span))((?!<).+)$/gm,
+    /^(?!<(?:[a-z/]|div|pre|blockquote|table|ul|ol|li|hr|h1|h2|h3|h4|h5|h6|span)|___MERMAID_BLOCK_)((?!<).+)$/gm,
     '<p>$1</p>'
   );
+
+  // Restore Mermaid diagram blocks (clean & uncorrupted)
+  mermaidBlocks.forEach((code, idx) => {
+    const placeholderRegex = new RegExp(`(?:<p>)?___MERMAID_BLOCK_${idx}___(?:<\\/p>)?`, 'g');
+    const diagramHtml = `<div class="handwritten-diagram"><div class="mermaid">${escapeHtml(code)}</div></div>`;
+    html = html.replace(placeholderRegex, diagramHtml);
+  });
 
   html = html.replace(/\n{3,}/g, '\n\n');
 
@@ -496,22 +524,111 @@ function markdownToHtml(md, isHandwritten = false) {
 }
 
 // ----------------------------------------
-//  Mermaid Diagram Renderer (Async & Safe)
+//  Mermaid Code Sanitizer & Safe Diagram Renderer
 // ----------------------------------------
+
+function sanitizeMermaidCode(raw) {
+  if (!raw) return '';
+  let code = raw.trim();
+
+  // Strip ```mermaid and ``` fences if present inside content
+  code = code.replace(/^```(?:mermaid)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+  // Ensure valid diagram type declaration at start
+  const validHeaders = /^(?:flowchart|graph|sequenceDiagram|stateDiagram|classDiagram|erDiagram|gantt|pie|mindmap|gitGraph|quadrantChart|journey|sankey-beta|timeline|C4Context)/im;
+  if (!validHeaders.test(code)) {
+    code = 'flowchart TD\n' + code;
+  }
+
+  const lines = code.split('\n');
+  const isFlow = /flowchart|graph/i.test(lines[0]);
+
+  const processedLines = lines.map(line => {
+    let l = line.trim();
+    if (!l) return '';
+    if (l.startsWith('%%')) return l;
+
+    if (isFlow) {
+      // Normalize single arrow -> to -->
+      l = l.replace(/([^\-])->([^\->])/g, '$1-->$2');
+
+      // Robust bracket node sanitizer: ID[any content] => ID["any content"]
+      l = l.replace(/([a-zA-Z0-9_-]+)\s*\[([\s\S]*?)\]/g, (_, id, content) => {
+        const clean = content.replace(/^"+|"+$/g, '').replace(/"/g, "'").trim();
+        return `${id}["${clean}"]`;
+      });
+
+      // Robust parenthesis node sanitizer: ID(any content) => ID("any content")
+      l = l.replace(/([a-zA-Z0-9_-]+)\s*\(([\s\S]*?)\)/g, (_, id, content) => {
+        const clean = content.replace(/^"+|"+$/g, '').replace(/"/g, "'").trim();
+        return `${id}("${clean}")`;
+      });
+    }
+
+    return '    ' + l;
+  });
+
+  return processedLines.join('\n').trim();
+}
+
+function renderFallbackFlowchart(code) {
+  const lines = code.split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('flowchart') && !l.startsWith('graph') && !l.startsWith('%%'));
+
+  const steps = [];
+  lines.forEach(l => {
+    const arrowMatch = l.match(/(?:\["?(.*?)"?\]|([a-zA-Z0-9_-]+))\s*(?:-->|->)\s*(?:\["?(.*?)"?\]|([a-zA-Z0-9_-]+))/);
+    if (arrowMatch) {
+      const from = (arrowMatch[1] || arrowMatch[2] || '').trim();
+      const to = (arrowMatch[3] || arrowMatch[4] || '').trim();
+      if (from && !steps.includes(from)) steps.push(from);
+      if (to && !steps.includes(to)) steps.push(to);
+    } else {
+      const singleMatch = l.match(/\["?(.*?)"?\]/);
+      if (singleMatch && singleMatch[1]) {
+        const text = singleMatch[1].trim();
+        if (text && !steps.includes(text)) steps.push(text);
+      }
+    }
+  });
+
+  if (steps.length === 0) {
+    return `<div class="handwritten-flow-diagram"><div class="flow-step"><span>${escapeHtml(code)}</span></div></div>`;
+  }
+
+  let html = '<div class="handwritten-flow-diagram">';
+  steps.forEach((step, idx) => {
+    html += `<div class="flow-step"><span class="flow-step-num">${idx + 1}</span><span class="flow-step-text">${escapeHtml(step)}</span></div>`;
+    if (idx < steps.length - 1) {
+      html += `<div class="flow-arrow">➔</div>`;
+    }
+  });
+  html += '</div>';
+  return html;
+}
 
 async function renderMermaidDiagrams(container) {
   if (!container || !window.mermaid) return;
+
+  // Clean up any stray error elements inserted by Mermaid
+  document.querySelectorAll('[id^="dmermaid"], svg[aria-roledescription="error"], .mermaidError').forEach(el => el.remove());
+
   const mermaidEls = container.querySelectorAll('.mermaid');
   if (mermaidEls.length === 0) return;
 
   try {
     mermaid.initialize({
       startOnLoad: false,
+      suppressErrorRendering: true,
       theme: 'neutral',
       look: 'handDrawn',
       fontFamily: 'Kalam, cursive',
       securityLevel: 'loose'
     });
+    if (typeof mermaid.parseError === 'function') {
+      mermaid.parseError = () => {};
+    }
   } catch (e) {
     console.warn('Mermaid init warning:', e);
   }
@@ -519,20 +636,37 @@ async function renderMermaidDiagrams(container) {
   for (let i = 0; i < mermaidEls.length; i++) {
     const el = mermaidEls[i];
     if (el.getAttribute('data-processed') === 'true') continue;
-    const code = el.textContent || '';
-    if (!code.trim()) continue;
+    const rawCode = el.textContent || '';
+    if (!rawCode.trim()) continue;
 
+    const sanitized = sanitizeMermaidCode(rawCode);
     const id = `mermaid-svg-${Date.now()}-${i}`;
+
+    let isValid = false;
     try {
-      const { svg } = await mermaid.render(id, code.trim());
-      el.innerHTML = svg;
-      el.setAttribute('data-processed', 'true');
-    } catch (err) {
-      console.warn('Mermaid render error for diagram snippet:', err);
-      // Clean fallback: styled sketch representation
-      el.innerHTML = `<pre style="font-family: 'Kalam', cursive; font-size: 15px; color: #1e3a8a; text-align: left; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed #93c5fd;">${escapeHtml(code)}</pre>`;
-      el.setAttribute('data-processed', 'true');
+      isValid = await mermaid.parse(sanitized, { suppressErrors: true });
+    } catch (parseErr) {
+      isValid = false;
     }
+
+    // Clean up any temporary error node created during parse
+    document.querySelectorAll(`[id="d${id}"], [id="${id}"], [id^="dmermaid"], svg[aria-roledescription="error"]`).forEach(s => s.remove());
+
+    if (isValid !== false) {
+      try {
+        const { svg } = await mermaid.render(id, sanitized);
+        el.innerHTML = svg;
+        el.setAttribute('data-processed', 'true');
+        continue;
+      } catch (err) {
+        console.warn('Mermaid render error for diagram snippet:', err);
+        document.querySelectorAll(`[id="d${id}"], [id="${id}"], [id^="dmermaid"], svg[aria-roledescription="error"]`).forEach(s => s.remove());
+      }
+    }
+
+    // If parse or render failed, render clean fallback flowchart
+    el.innerHTML = renderFallbackFlowchart(sanitized || rawCode);
+    el.setAttribute('data-processed', 'true');
   }
 }
 
@@ -844,12 +978,14 @@ if (includeDiagramsChk) {
 // ----------------------------------------
 
 async function generateNotes() {
-  const url = urlInput.value.trim();
+  const url = urlInput.value.trim().replace(/^["'`]|["'`]$/g, '').trim();
 
   if (!url) {
     urlInput.focus();
     urlInput.style.outline = '3px solid var(--accent-pink-medium)';
     setTimeout(() => (urlInput.style.outline = ''), 2000);
+    showToast('Please enter or paste a YouTube URL first 🌸', 'error');
+    triggerPandaBubble('Paste a YouTube link above to start! 📝');
     return;
   }
 
@@ -857,6 +993,7 @@ async function generateNotes() {
 
   if (!videoId) {
     showToast('Please enter a valid YouTube video URL 🌸', 'error');
+    triggerPandaBubble('That doesn\'t look like a valid YouTube link 😿');
     return;
   }
 

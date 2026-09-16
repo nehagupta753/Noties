@@ -79,7 +79,7 @@ public class GeminiService {
     public Map<String, String> generateNotes(String videoTitle, String transcript, boolean isHandwritten, boolean includeDiagrams) {
         String prompt = isHandwritten
                 ? buildHandwrittenNotesPrompt(videoTitle, transcript, includeDiagrams)
-                : buildCombinedNotesPrompt(videoTitle, transcript);
+                : buildCombinedNotesPrompt(videoTitle, transcript, includeDiagrams);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -101,7 +101,7 @@ public class GeminiService {
     public String generateNotesForChunk(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean isHandwritten, boolean includeDiagrams) {
         String prompt = isHandwritten
                 ? buildHandwrittenChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks, includeDiagrams)
-                : buildChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks);
+                : buildChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks, includeDiagrams);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -117,7 +117,7 @@ public class GeminiService {
     public String generateConsolidatedRevision(String videoTitle, List<String> allChunkNotes, boolean isHandwritten, boolean includeDiagrams) {
         String prompt = isHandwritten
                 ? buildHandwrittenMergePrompt(videoTitle, allChunkNotes, includeDiagrams)
-                : buildMergePrompt(videoTitle, allChunkNotes);
+                : buildMergePrompt(videoTitle, allChunkNotes, includeDiagrams);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -147,7 +147,7 @@ public class GeminiService {
             try {
                 String prompt1 = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1, includeDiagrams)
-                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1);
+                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1, includeDiagrams);
                 String p1 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt1)))),
                         "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -162,7 +162,7 @@ public class GeminiService {
             try {
                 String prompt2 = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2, includeDiagrams)
-                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2);
+                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2, includeDiagrams);
                 String p2 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt2)))),
                         "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -177,7 +177,7 @@ public class GeminiService {
             try {
                 String prompt3 = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3, includeDiagrams)
-                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3);
+                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3, includeDiagrams);
                 String p3 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt3)))),
                         "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -192,7 +192,7 @@ public class GeminiService {
             try {
                 String prompt4 = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4, includeDiagrams)
-                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4);
+                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4, includeDiagrams);
                 String p4 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt4)))),
                         "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -224,7 +224,7 @@ public class GeminiService {
             if (listener != null) listener.onProgress("Generating complete study guide from video outline...", 50);
             String prompt = isHandwritten
                     ? buildHandwrittenNotesPrompt(videoTitle, (description != null ? description : "") + "\nKeywords: " + keywords, includeDiagrams)
-                    : buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords);
+                    : buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords, includeDiagrams);
             Map<String, Object> body = Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                     "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -475,9 +475,30 @@ public class GeminiService {
         }
     }
 
+    // ── Shared Diagram Instruction ────────────────────────────────────
+
+    private static String getDiagramInstruction(boolean includeDiagrams) {
+        if (!includeDiagrams) {
+            return "6. NO DIAGRAMS: Do not include Mermaid diagrams; keep explanations in structured text with bullet points, code blocks, and callout boxes.";
+        }
+        return """
+                6. VISUAL DIAGRAMS (ESSENTIAL & VALUE-ADD):
+                   - Wherever a visual diagram genuinely clarifies a concept (e.g. data flow, system architecture, state machine, algorithm steps, lifecycle, or component tree), insert a clean Mermaid.js diagram enclosed in a ```mermaid ... ``` code block.
+                   - STRICT MERMAID SYNTAX RULES (CRITICAL - MUST BE VALID MERMAID):
+                     * Always start the diagram block with `flowchart TD` (or `sequenceDiagram` / `stateDiagram-v2`).
+                     * Node IDs must be simple alphanumeric strings (e.g., A, B, C, Step1, Step2).
+                     * ALL node text labels MUST be enclosed in double quotes inside brackets:
+                       A["User Interface"] --> B["API Gateway"]
+                       B --> C["Database (PostgreSQL)"]
+                     * NEVER use unquoted parentheses `()`, brackets `[]`, braces `{}`, colons `:`, or raw arrows `->` inside node labels.
+                     * Keep diagrams clean, concise, and focused (4 to 8 nodes maximum).
+                     * Do NOT put markdown formatting (bold, italic) or bullet points inside the mermaid block.
+                """;
+    }
+
     // ── Prompts matching original Node.js ──────────────────────────────
 
-    private String buildCombinedNotesPrompt(String videoTitle, String transcript) {
+    private String buildCombinedNotesPrompt(String videoTitle, String transcript, boolean includeDiagrams) {
         return """
                 You are a master educator and textbook author creating high-yield, aesthetic study notes for students.
                 
@@ -495,7 +516,8 @@ public class GeminiService {
                    - Use bullet points and numbered lists for readability.
                    - For tutorials/technical topics: Provide clean, commented, fully explained code blocks or command sequences.
                    - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
-                5. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the main title and structured content.
+                5. %s
+                6. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the main title and structured content.
                 
                 ---
                 
@@ -515,10 +537,10 @@ public class GeminiService {
                 ---
                 TRANSCRIPT FOR VIDEO "%s":
                 %s
-                """.formatted(videoTitle, videoTitle, videoTitle, transcript);
+                """.formatted(videoTitle, videoTitle, getDiagramInstruction(includeDiagrams), videoTitle, transcript);
     }
 
-    private String buildChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks) {
+    private String buildChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean includeDiagrams) {
         boolean isFinalChunk = (chunkIndex == totalChunks - 1);
         String finalInstruction = isFinalChunk ?
                 "3. CRITICAL FINAL PART REQUIREMENT: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section of the video transcript). You MUST cover all topics and code examples up to the very LAST line of the transcript. Conclude Part 1 with a '🎓 Final Course Conclusion & Master Takeaways' section." : "";
@@ -536,15 +558,16 @@ public class GeminiService {
                 - Use clear markdown headers (`## Topic`, `### Subtopic`), bold keywords, and clean bulleted explanations.
                 - For programming/math: write full, commented code blocks or formulas with line-by-line intuition.
                 - Include `✅ **Key Takeaway**` and `💡 **Pro Tip**` callouts.
+                - %s
                 - Do not include conversational filler or meta intros.
                 
                 ---
                 Transcript Chunk %d of %d for "%s":
                 %s
-                """.formatted(chunkIndex + 1, totalChunks, videoTitle, finalInstruction, chunkIndex + 1, totalChunks, videoTitle, chunk);
+                """.formatted(chunkIndex + 1, totalChunks, videoTitle, finalInstruction, getDiagramInstruction(includeDiagrams), chunkIndex + 1, totalChunks, videoTitle, chunk);
     }
 
-    private String buildMergePrompt(String videoTitle, List<String> allChunkNotes) {
+    private String buildMergePrompt(String videoTitle, List<String> allChunkNotes, boolean includeDiagrams) {
         String combined = String.join("\n\n---\n\n", allChunkNotes);
         return """
                 You are a master educator and revision guide specialist.
@@ -565,6 +588,8 @@ public class GeminiService {
                 ## 📝 Syntax, Commands & Formulas Cheat Sheet
                 - Provide code syntax tables, command cheat sheets, or key formulas from this video.
                 
+                %s
+                
                 ## 🧠 Flashcard Recall Q&A
                 - Minimum 15-20 rapid-fire flashcards formatted as:
                   - **Q:** [Question]
@@ -573,10 +598,10 @@ public class GeminiService {
                 ---
                 Compiled Notes from all parts of "%s":
                 %s
-                """.formatted(allChunkNotes.size(), videoTitle, allChunkNotes.size(), videoTitle, allChunkNotes.size(), videoTitle, combined);
+                """.formatted(allChunkNotes.size(), videoTitle, allChunkNotes.size(), videoTitle, allChunkNotes.size(), getDiagramInstruction(includeDiagrams), videoTitle, combined);
     }
 
-    private String buildMetadataNotesPrompt(String videoTitle, String description, String author, String duration, List<String> keywords) {
+    private String buildMetadataNotesPrompt(String videoTitle, String description, String author, String duration, List<String> keywords, boolean includeDiagrams) {
         String kwList = (keywords != null && !keywords.isEmpty()) ? String.join(", ", keywords) : "N/A";
         String descText = (description != null && !description.isBlank()) ? description.trim() : "No detailed description provided.";
         String durText = (duration != null && !duration.isBlank()) ? duration : "Full Length Course";
@@ -605,7 +630,8 @@ public class GeminiService {
                    - Use bullet points and numbered lists for readability.
                    - For tutorials/technical topics: Provide clean, commented, fully explained code blocks or command sequences.
                    - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
-                4. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the main title and structured content.
+                4. %s
+                5. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the main title and structured content.
                 
                 ---
                 
@@ -621,10 +647,10 @@ public class GeminiService {
                 - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions from this topic.
                 - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas for this topic.
                 - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`) based on this video's topic.
-                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, descText, videoTitle, durText, durText, durText, videoTitle, durText, durText, durText);
+                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, descText, videoTitle, durText, durText, durText, getDiagramInstruction(includeDiagrams), videoTitle, durText, durText, durText);
     }
 
-    private String buildMetadataPartPrompt(String videoTitle, String description, String author, String duration, List<String> keywords, int partNum) {
+    private String buildMetadataPartPrompt(String videoTitle, String description, String author, String duration, List<String> keywords, int partNum, boolean includeDiagrams) {
         String kwList = (keywords != null && !keywords.isEmpty()) ? String.join(", ", keywords) : "N/A";
         String descText = (description != null && !description.isBlank()) ? description.trim() : "No detailed description provided.";
         String durText = (duration != null && !duration.isBlank()) ? duration : "Full Length Course";
@@ -657,8 +683,9 @@ public class GeminiService {
                    - Use bold text for key terms, definitions, and important syntax.
                    - For tutorials/technical topics: Provide clean, commented, fully explained code blocks or command sequences.
                    - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
-                4. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the structured module headers and content.
-                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, descText, sectionFocus, videoTitle);
+                4. %s
+                5. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the structured module headers and content.
+                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, descText, sectionFocus, videoTitle, getDiagramInstruction(includeDiagrams));
     }
 
     private String buildMetadataRevisionPrompt(String videoTitle, String description, String author, String duration, List<String> keywords) {
@@ -693,14 +720,6 @@ public class GeminiService {
     // ── Handwritten Mode Prompts ───────────────────────────────────────
 
     private String buildHandwrittenNotesPrompt(String videoTitle, String transcript, boolean includeDiagrams) {
-        String diagramInstruction = includeDiagrams ? """
-                6. SKETCH DIAGRAMS (ESSENTIAL & VALUABLE ONLY):
-                   - Wherever a visual diagram genuinely clarifies a flow, state machine, architecture, lifecycle, network, hierarchy, or comparison, insert a clean Mermaid.js diagram enclosed in a ```mermaid ... ``` code block.
-                   - Use clean, simple syntax (e.g. `flowchart TD`, `stateDiagram-v2`, `sequenceDiagram`, `mindmap`).
-                   - Keep diagrams concise (5 to 8 essential nodes maximum).
-                   - Do NOT insert unnecessary diagrams for trivial text or after every single paragraph.
-                """ : "6. NO DIAGRAMS: Do not include Mermaid diagrams; keep explanations in clean handwritten note format with bullet points and boxes.";
-
         return """
                 You are generating concise, humanized handwritten-style study notes from a lecture transcript.
                 Create notes like a top engineering student would write in a neat, aesthetic notebook.
@@ -743,17 +762,13 @@ public class GeminiService {
                 ---
                 TRANSCRIPT FOR VIDEO "%s":
                 %s
-                """.formatted(videoTitle, diagramInstruction, videoTitle, transcript);
+                """.formatted(videoTitle, getDiagramInstruction(includeDiagrams), videoTitle, transcript);
     }
 
     private String buildHandwrittenChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean includeDiagrams) {
         boolean isFinalChunk = (chunkIndex == totalChunks - 1);
         String finalInstruction = isFinalChunk ?
                 "4. FINAL PART: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section). Cover all concepts up to the end and conclude with '🎓 Notebook Summary & Key Takeaways'." : "";
-
-        String diagramInstruction = includeDiagrams ?
-                "- If this section contains a state flow, process, component tree, or architecture, include a simple Mermaid diagram (```mermaid ... ```). Keep it clean with 4-7 nodes." :
-                "- Do not include diagrams.";
 
         return """
                 You are writing neat, concise student handwritten notebook notes for PART %d of %d of the video titled "%s".
@@ -774,14 +789,11 @@ public class GeminiService {
                 ---
                 Transcript Chunk %d of %d for "%s":
                 %s
-                """.formatted(chunkIndex + 1, totalChunks, videoTitle, diagramInstruction, finalInstruction, chunkIndex + 1, totalChunks, videoTitle, chunk);
+                """.formatted(chunkIndex + 1, totalChunks, videoTitle, getDiagramInstruction(includeDiagrams), finalInstruction, chunkIndex + 1, totalChunks, videoTitle, chunk);
     }
 
     private String buildHandwrittenMergePrompt(String videoTitle, List<String> allChunkNotes, boolean includeDiagrams) {
         String combined = String.join("\n\n---\n\n", allChunkNotes);
-        String diagramInstruction = includeDiagrams ?
-                "- Include 1-2 overarching Mermaid roadmap / summary flowcharts (```mermaid ... ```) connecting the entire topic." :
-                "- Do not include diagrams.";
 
         return """
                 You are creating an aesthetic Quick Revision Notebook Cheat Sheet compiled from %d sections of the video titled "%s".
@@ -806,7 +818,7 @@ public class GeminiService {
                 ---
                 Compiled Notes from all parts of "%s":
                 %s
-                """.formatted(allChunkNotes.size(), videoTitle, videoTitle, diagramInstruction, videoTitle, combined);
+                """.formatted(allChunkNotes.size(), videoTitle, videoTitle, getDiagramInstruction(includeDiagrams), videoTitle, combined);
     }
 
     private String buildHandwrittenMetadataPartPrompt(String videoTitle, String description, String author, String duration, List<String> keywords, int partNum, boolean includeDiagrams) {
@@ -820,10 +832,6 @@ public class GeminiService {
             case 3 -> "PART 3 OF 4: ADVANCED HOOKS, ROUTING & GLOBAL STATE (Performance Hooks, Custom Hooks, Routing, Context API / Global State, Async Operations).";
             default -> "PART 4 OF 4: REAL-WORLD PROJECTS, OPTIMIZATION & PRODUCTION DEPLOYMENT (Architecture Patterns, Error Handling, Optimization, Build & Cloud Deployment). Conclude with '🎓 Final Notebook Takeaways'.";
         };
-
-        String diagramInstruction = includeDiagrams ?
-                "4. DIAGRAMS: Include 1-2 clean Mermaid.js flowcharts/diagrams (```mermaid ... ```) showing state flows, architecture, or lifecycles for this module." :
-                "4. DIAGRAMS: No diagrams.";
 
         return """
                 You are creating handwritten-style notebook study notes for a student watching a comprehensive course.
@@ -848,7 +856,7 @@ public class GeminiService {
                    - `> 💡 **Example:**` for examples
                 3. %s
                 5. Do NOT include conversational intros. Start immediately with content.
-                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, sectionFocus, descText, diagramInstruction);
+                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, sectionFocus, descText, getDiagramInstruction(includeDiagrams));
     }
 
     private String buildHandwrittenMetadataRevisionPrompt(String videoTitle, String description, String author, String duration, List<String> keywords) {

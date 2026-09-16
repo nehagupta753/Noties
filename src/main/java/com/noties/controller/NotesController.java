@@ -90,8 +90,8 @@ public class NotesController {
                 String detailedNotes;
                 String revisionNotes;
 
-                int CHUNK_THRESHOLD = 30_000;
-                int CHUNK_SIZE = 35_000;
+                int CHUNK_THRESHOLD = 12_000;
+                int CHUNK_SIZE = 14_000;
 
                 if (hasTranscript && transcript != null && !transcript.isBlank()) {
                     sendProgress(emitter, isHandwritten ? "Transcript validated! Writing handwritten notebook notes..." : "Transcript validated! Generating study notes...", 25);

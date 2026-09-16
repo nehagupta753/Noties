@@ -2467,6 +2467,58 @@ body {
   }
 }
 
+/* Suppress Mermaid default bomb error SVGs completely */
+[id^="dmermaid"], svg[aria-roledescription="error"], .mermaidError {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Fallback visual sketch flowchart */
+.handwritten-flow-diagram {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 8px;
+  font-family: 'Kalam', cursive, sans-serif;
+}
+
+.flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fdf2f8;
+  border: 2px solid #f472b6;
+  border-radius: 12px;
+  padding: 8px 16px;
+  color: #831843;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 2px 3px 0 #fbcfe8;
+}
+
+.flow-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: #ec4899;
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.flow-arrow {
+  color: #db2777;
+  font-size: 20px;
+  font-weight: bold;
+}
+
 /* PDF Print styling */
 @media print {
   .notebook-page {

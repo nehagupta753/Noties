@@ -30,11 +30,8 @@ public class TranscriptService {
 
     // YouTube URL matching patterns
     private static final Pattern[] VIDEO_ID_PATTERNS = {
-            Pattern.compile("(?:youtube\\.com/watch\\?v=)([a-zA-Z0-9_-]{11})"),
-            Pattern.compile("(?:youtube\\.com/embed/)([a-zA-Z0-9_-]{11})"),
-            Pattern.compile("(?:youtube\\.com/v/)([a-zA-Z0-9_-]{11})"),
-            Pattern.compile("(?:youtu\\.be/)([a-zA-Z0-9_-]{11})"),
-            Pattern.compile("(?:youtube\\.com/shorts/)([a-zA-Z0-9_-]{11})"),
+            Pattern.compile("[?&]v=([a-zA-Z0-9_-]{11})"),
+            Pattern.compile("(?:youtu\\.be/|youtube\\.com/(?:embed|v|shorts|live)/)([a-zA-Z0-9_-]{11})"),
             Pattern.compile("^([a-zA-Z0-9_-]{11})$"),
     };
 

@@ -2273,108 +2273,145 @@ body {
    ======================================== */
 .notes-content.handwritten-mode,
 .handwritten-notes {
-  font-family: 'Kalam', cursive, sans-serif !important;
-  font-size: 17px;
-  line-height: 32px;
-  color: #1a2f4c;
+  font-family: 'Kalam', 'Patrick Hand', 'Caveat', cursive, sans-serif !important;
+  font-size: 17.5px;
+  line-height: 34px;
+  color: #1e293b;
+  letter-spacing: 0.2px;
 }
 
 .notebook-page {
-  background-color: #fffdf8;
+  background-color: #fefcf7;
   background-image: 
-    linear-gradient(90deg, transparent 52px, #ffccd5 52px, #ffccd5 54px, transparent 54px),
-    repeating-linear-gradient(transparent, transparent 31px, rgba(120, 165, 220, 0.2) 31px, rgba(120, 165, 220, 0.2) 32px);
-  border-radius: var(--radius-lg);
-  border: 2px solid #ecd8c8;
-  padding: 30px 32px 30px 68px;
-  margin-bottom: 24px;
+    linear-gradient(90deg, transparent 54px, #fca5a5 54px, #fca5a5 55.5px, transparent 55.5px, transparent 58px, #fca5a5 58px, #fca5a5 59.5px, transparent 59.5px),
+    repeating-linear-gradient(transparent, transparent 33px, rgba(147, 197, 253, 0.35) 33px, rgba(147, 197, 253, 0.35) 34px);
+  border-radius: 16px;
+  border: 2px solid #e7dfd5;
+  padding: 36px 36px 36px 76px;
+  margin-bottom: 28px;
   box-shadow: 
-    0 4px 16px rgba(180, 150, 130, 0.12),
-    inset 0 0 40px rgba(255, 250, 240, 0.6);
+    0 6px 20px rgba(160, 130, 100, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    inset 0 0 60px rgba(254, 249, 235, 0.8);
   position: relative;
 }
 
+/* Notebook Binder Holes & Spiral Margin */
 .notebook-page::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 20px;
+  left: 18px;
   bottom: 0;
-  width: 14px;
-  background: radial-gradient(circle, #e6ded8 3.5px, transparent 4px);
-  background-size: 14px 44px;
-  background-position: 0 20px;
-  opacity: 0.6;
+  width: 18px;
+  background: radial-gradient(circle, #e2d9d0 4px, #c4b5a5 4.5px, transparent 5.5px);
+  background-size: 18px 48px;
+  background-position: 0 24px;
+  opacity: 0.75;
 }
 
 .handwritten-notes h1,
 .notes-content.handwritten-mode h1 {
-  font-family: 'Kalam', cursive, sans-serif !important;
+  font-family: 'Kalam', 'Caveat', cursive, sans-serif !important;
   font-size: 32px;
   font-weight: 700;
-  color: #1a365d;
+  color: #0f2d59;
   background: none;
-  -webkit-text-fill-color: #1a365d;
-  border-bottom: 3px solid #ff85a1;
-  padding-bottom: 6px;
-  margin-top: 10px;
-  margin-bottom: 22px;
+  -webkit-text-fill-color: #0f2d59;
+  border-bottom: 3px solid #f472b6;
+  padding-bottom: 8px;
+  margin-top: 12px;
+  margin-bottom: 24px;
   letter-spacing: 0.5px;
+  display: inline-block;
+  transform: rotate(-0.4deg);
 }
 
 .handwritten-notes h2,
 .notes-content.handwritten-mode h2 {
-  font-family: 'Kalam', cursive, sans-serif !important;
+  font-family: 'Kalam', 'Caveat', cursive, sans-serif !important;
   font-size: 24px;
   font-weight: 700;
-  color: #2b4c7e;
-  border-bottom: 2px dashed rgba(255, 133, 161, 0.6);
-  padding-bottom: 4px;
-  margin-top: 32px;
+  color: #1e3a8a;
+  background: linear-gradient(180deg, transparent 62%, rgba(254, 240, 138, 0.65) 62%);
+  display: inline-block;
+  padding: 2px 8px 4px 2px;
+  margin-top: 34px;
   margin-bottom: 16px;
+  border-radius: 4px;
+  transform: rotate(-0.3deg);
 }
 
 .handwritten-notes h3,
 .notes-content.handwritten-mode h3 {
-  font-family: 'Kalam', cursive, sans-serif !important;
+  font-family: 'Kalam', 'Caveat', cursive, sans-serif !important;
   font-size: 20px;
   font-weight: 700;
-  color: #9d2b56;
+  color: #831843;
   margin-top: 24px;
   margin-bottom: 12px;
+  padding-left: 4px;
+  border-left: 3px solid #ec4899;
 }
 
 .handwritten-notes p,
 .notes-content.handwritten-mode p {
-  font-family: 'Kalam', cursive, sans-serif !important;
+  font-family: 'Kalam', 'Patrick Hand', cursive, sans-serif !important;
   margin-bottom: 14px;
-  color: #1a2f4c;
+  color: #1e293b;
 }
 
-/* Boxed Definitions */
+.handwritten-notes ul,
+.notes-content.handwritten-mode ul {
+  list-style-type: none;
+  padding-left: 12px;
+  margin-bottom: 16px;
+}
+
+.handwritten-notes ul li,
+.notes-content.handwritten-mode ul li {
+  position: relative;
+  padding-left: 24px;
+  margin-bottom: 6px;
+  line-height: 32px;
+}
+
+.handwritten-notes ul li::before,
+.notes-content.handwritten-mode ul li::before {
+  content: '➔';
+  position: absolute;
+  left: 0;
+  color: #ec4899;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Boxed Definitions (Human Sticky Style) */
 .note-definition {
-  background: #f7fbff;
-  border: 2px dashed #93c5fd;
-  border-radius: 12px;
-  padding: 12px 18px;
-  margin: 18px 0;
+  background: #f0f7ff;
+  border: 2px dashed #60a5fa;
+  border-radius: 14px 10px 14px 12px;
+  padding: 14px 20px;
+  margin: 20px 0;
   color: #1e3a8a;
-  box-shadow: 2px 3px 0 rgba(147, 197, 253, 0.3);
-  line-height: 28px;
+  box-shadow: 3px 4px 0 rgba(96, 165, 250, 0.25);
+  line-height: 30px;
+  position: relative;
 }
 
 .note-definition strong {
   color: #1d4ed8 !important;
+  font-weight: 700;
 }
 
-/* Starred & Important Points */
+/* Starred & Important Points (Highlighter Ink Effect) */
 .note-important {
-  background: linear-gradient(104deg, rgba(255, 230, 100, 0) 0.9%, rgba(255, 235, 120, 0.9) 2.4%, rgba(255, 235, 120, 0.6) 5.8%, rgba(255, 235, 120, 0.25) 93%, rgba(255, 235, 120, 0.75) 96%);
-  border-radius: 6px;
+  background: linear-gradient(104deg, rgba(254, 240, 138, 0) 0.5%, rgba(254, 240, 138, 0.95) 2.5%, rgba(254, 240, 138, 0.8) 6%, rgba(254, 240, 138, 0.7) 94%, rgba(254, 240, 138, 0.95) 97%, rgba(254, 240, 138, 0) 100%);
+  border-radius: 4px;
   padding: 2px 8px;
   display: inline;
   font-weight: 700;
-  color: #3b2800 !important;
+  color: #451a03 !important;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -2382,57 +2419,127 @@ body {
 .note-important-block {
   background: #fffbeb;
   border-left: 5px solid #f59e0b;
-  border-radius: 0 10px 10px 0;
-  padding: 10px 16px;
-  margin: 16px 0;
+  border-radius: 0 12px 12px 0;
+  padding: 12px 18px;
+  margin: 18px 0;
   color: #78350f;
+  font-weight: 600;
+  box-shadow: 2px 2px 8px rgba(245, 158, 11, 0.08);
+}
+
+/* Formulas & Syntax (Graph Paper Sketch Box) */
+.note-formula {
+  background-color: #f8fafc;
+  background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+  background-size: 14px 14px;
+  border: 2px solid #475569;
+  border-radius: 12px 14px 10px 13px;
+  padding: 14px 20px;
+  margin: 20px 0;
+  font-family: 'JetBrains Mono', 'Kalam', monospace;
+  color: #0f172a;
+  text-align: left;
+  font-size: 16px;
+  box-shadow: 3px 4px 0 #cbd5e1;
+}
+
+.note-formula code {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: #0369a1;
   font-weight: 600;
 }
 
-/* Formulas */
-.note-formula {
-  background: #f8fafc;
-  border: 2px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 10px 18px;
-  margin: 16px 0;
-  font-family: 'JetBrains Mono', 'Kalam', monospace;
-  color: #0f172a;
-  text-align: center;
-  font-size: 16px;
-  box-shadow: 2px 3px 0 #e2e8f0;
-}
-
-/* Examples */
+/* Examples (Peach Sticky Note) */
 .note-example {
-  background: #fff8f5;
-  border-left: 4px solid #fb923c;
-  border-radius: 0 10px 10px 0;
-  padding: 10px 16px;
-  margin: 16px 0;
+  background: #fff7ed;
+  border-left: 5px solid #ea580c;
+  border-radius: 0 12px 12px 0;
+  padding: 12px 18px;
+  margin: 18px 0;
   color: #9a3412;
+  box-shadow: 2px 2px 8px rgba(234, 88, 12, 0.08);
 }
 
-/* Mermaid / Sketch Diagram Container */
+.note-example strong {
+  color: #c2410c !important;
+}
+
+/* Pitfalls & Common Mistakes (Red Alert Note) */
+.note-warning {
+  background: #fef2f2;
+  border-left: 5px solid #ef4444;
+  border-radius: 0 12px 12px 0;
+  padding: 12px 18px;
+  margin: 18px 0;
+  color: #991b1b;
+  box-shadow: 2px 2px 8px rgba(239, 68, 68, 0.08);
+}
+
+.note-warning strong {
+  color: #b91c1c !important;
+}
+
+/* Key Takeaways (Green Note) */
+.note-takeaway {
+  background: #f0fdf4;
+  border-left: 5px solid #16a34a;
+  border-radius: 0 12px 12px 0;
+  padding: 12px 18px;
+  margin: 18px 0;
+  color: #14532d;
+  box-shadow: 2px 2px 8px rgba(22, 163, 74, 0.08);
+}
+
+.note-takeaway strong {
+  color: #15803d !important;
+}
+
+/* ========================================
+   Hand-Drawn Sketch Diagram Container
+   ======================================== */
 .handwritten-diagram {
-  background: #ffffff;
-  border: 2px dashed rgba(140, 170, 210, 0.7);
-  border-radius: 16px;
-  padding: 24px 16px;
-  margin: 24px 0;
+  background-color: #fffdf9;
+  background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+  background-size: 16px 16px;
+  border: 2px solid #475569;
+  border-radius: 14px 18px 12px 16px / 16px 12px 18px 14px;
+  padding: 30px 20px 22px;
+  margin: 28px 0;
   text-align: center;
   overflow-x: auto;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  box-shadow: 
+    3px 5px 0 rgba(71, 85, 105, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.06);
+  position: relative;
   page-break-inside: avoid;
   break-inside: avoid;
+  transform: rotate(-0.3deg);
+}
+
+/* Washi Tape / Sticky Tape Effect on Diagram */
+.handwritten-diagram::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%) rotate(0.8deg);
+  width: 100px;
+  height: 22px;
+  background: rgba(254, 240, 138, 0.85);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  border-left: 3px dashed rgba(202, 138, 4, 0.5);
+  border-right: 3px dashed rgba(202, 138, 4, 0.5);
+  z-index: 3;
 }
 
 .handwritten-diagram .diagram-title {
-  font-family: 'Kalam', cursive, sans-serif;
-  font-size: 17px;
+  font-family: 'Kalam', 'Caveat', cursive, sans-serif;
+  font-size: 18px;
   font-weight: 700;
-  color: #334155;
-  margin-bottom: 12px;
+  color: #1e293b;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2442,7 +2549,23 @@ body {
 .handwritten-diagram svg {
   max-width: 100%;
   height: auto;
-  font-family: 'Kalam', cursive, sans-serif !important;
+  font-family: 'Kalam', 'Patrick Hand', cursive, sans-serif !important;
+  filter: drop-shadow(1px 2px 0px rgba(0, 0, 0, 0.05));
+}
+
+.handwritten-diagram svg text,
+.handwritten-diagram svg .nodeLabel,
+.handwritten-diagram svg .edgeLabel {
+  font-family: 'Kalam', 'Patrick Hand', cursive, sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  fill: #0f2d59 !important;
+}
+
+.handwritten-diagram svg .node rect,
+.handwritten-diagram svg .node circle,
+.handwritten-diagram svg .node polygon {
+  stroke-width: 2px !important;
 }
 
 /* Responsive adjustment for notebook */
@@ -2454,16 +2577,20 @@ body {
   }
 
   .notebook-page {
-    padding: 24px 18px 24px 44px;
+    padding: 24px 18px 24px 48px;
     background-image: 
-      linear-gradient(90deg, transparent 34px, #ffccd5 34px, #ffccd5 36px, transparent 36px),
-      repeating-linear-gradient(transparent, transparent 31px, rgba(120, 165, 220, 0.2) 31px, rgba(120, 165, 220, 0.2) 32px);
+      linear-gradient(90deg, transparent 36px, #fca5a5 36px, #fca5a5 37.5px, transparent 37.5px),
+      repeating-linear-gradient(transparent, transparent 33px, rgba(147, 197, 253, 0.35) 33px, rgba(147, 197, 253, 0.35) 34px);
   }
 
   .notebook-page::before {
     left: 10px;
-    width: 10px;
-    background-size: 10px 44px;
+    width: 12px;
+    background-size: 12px 48px;
+  }
+
+  .handwritten-diagram {
+    padding: 24px 12px 16px;
   }
 }
 
@@ -2481,41 +2608,41 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
   padding: 16px 8px;
-  font-family: 'Kalam', cursive, sans-serif;
+  font-family: 'Kalam', 'Patrick Hand', cursive, sans-serif;
 }
 
 .flow-step {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   background: #fdf2f8;
-  border: 2px solid #f472b6;
-  border-radius: 12px;
-  padding: 8px 16px;
+  border: 2px solid #ec4899;
+  border-radius: 14px 10px 13px 11px;
+  padding: 8px 18px;
   color: #831843;
-  font-size: 16px;
-  font-weight: 600;
-  box-shadow: 2px 3px 0 #fbcfe8;
+  font-size: 16.5px;
+  font-weight: 700;
+  box-shadow: 3px 3px 0 #fbcfe8;
 }
 
 .flow-step-num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: #ec4899;
+  width: 24px;
+  height: 24px;
+  background: #db2777;
   color: white;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .flow-arrow {
   color: #db2777;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: bold;
 }
 
@@ -2530,7 +2657,9 @@ body {
   .handwritten-diagram {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    border: 1px dashed #aaa !important;
+    border: 1px dashed #666 !important;
+    background: #ffffff !important;
   }
 }
+
 

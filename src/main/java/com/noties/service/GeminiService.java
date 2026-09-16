@@ -721,33 +721,40 @@ public class GeminiService {
 
     private String buildHandwrittenNotesPrompt(String videoTitle, String transcript, boolean includeDiagrams) {
         return """
-                You are generating concise, humanized handwritten-style study notes from a lecture transcript.
-                Create notes like a top engineering student would write in a neat, aesthetic notebook.
+                You are a top-scoring student creating authentic, human-made handwritten study notes from a lecture transcript.
+                Create notes exactly like a dedicated student writes in a neat, aesthetic personal notebook.
 
                 TARGET VIDEO TITLE: "%s"
 
-                RULES & NOTEBOOK GUIDELINES:
-                1. Preserve all important concepts, formulas, code snippets, and mechanisms without filler or repetition.
-                2. Use short, understandable sentences and clear hierarchy.
-                3. HEADINGS: Use `# Title`, `## Main Section`, `### Sub-Topic`.
-                4. DEFINITIONS: Put every core definition in a clear blockquote formatted as:
-                   > 📖 **Definition: [Term]**
-                   > [Clear, concise 1-2 sentence definition]
-                5. IMPORTANT EXAM POINTS: Highlight must-know points with:
-                   ★ **Important:** [Crucial concept, rule, or exam pitfall]
-                6. BULLET POINTS & ARROWS: Use `→` for progression/steps and `•` for item lists.
-                7. FORMULAS & SYNTAX: Enclose equations, syntax rules, or core snippets in:
-                   > 📐 **Formula / Syntax:**
-                   > `[Formula or key code syntax]`
-                8. PRACTICAL EXAMPLES:
-                   > 💡 **Example:** [Concrete, intuitive example]
-                9. %s
-                10. Never invent facts not covered in the transcript.
+                RULES & HUMAN NOTEBOOK GUIDELINES:
+                1. 100%% COMPREHENSIVE COVERAGE (FROM FIRST SECOND TO THE VERY END):
+                   - Cover EVERY single topic, explanation, formula, code example, derivation, and concept in the transcript.
+                   - Do NOT skip any topic or rush through sections. Provide thorough, complete notes.
+                2. NATURAL NOTEBOOK HIERARCHY & FLOW:
+                   - `# [Title]` for master notebook title
+                   - `## [Major Section / Lecture Topic]`
+                   - `### [Detailed Sub-Concept]`
+                3. HUMAN STUDY ANNOTATIONS & CALLOUTS:
+                   - DEFINITIONS: Format key definitions in clear boxed callouts:
+                     > 📖 **Definition: [Term]**
+                     > [Clear, intuitive explanation of the concept]
+                   - MUST-KNOW EXAM HIGHLIGHTS:
+                     ★ **Important:** [Crucial exam point, key takeaway, or memory trick]
+                   - FORMULAS & SYNTAX BOXES:
+                     > 📐 **Formula / Syntax:**
+                     > `[Formula or key code syntax with explanation of terms]`
+                   - PRACTICAL EXAMPLES:
+                     > 💡 **Example:** [Step-by-step worked example or practical code snippet]
+                   - PITFALLS & TRAPS:
+                     > ⚠️ **Common Mistake:** [Frequent error to avoid]
+                   - BULLET POINTS & SEQUENCES: Use `→` for step-by-step sequences and `•` for item lists.
+                4. %s
+                5. Do NOT include meta-introductory text or conversational filler. Start directly with the notebook title.
 
                 ---
 
-                **PART 1: Handwritten Detailed Study Notes**
-                Write complete, neat notebook notes based ONLY on the transcript from start to the very end of the video.
+                **PART 1: Handwritten Detailed Notebook Notes**
+                Write complete, deeply detailed student notebook notes based strictly on the transcript from start to the very end of the video.
 
                 Then write EXACTLY this separator line on its own line:
                 ===REVISION_NOTES===
@@ -757,7 +764,7 @@ public class GeminiService {
                 - `## 📚 Key Concept Rapid Recap` (bullet points with `→`)
                 - `## ⚡ Core Rules & Definitions`
                 - `## 📝 Quick Syntax & Formula Cheat Box`
-                - `## 🧠 Fast Recall Q&A` (10-15 concise flashcard pairs `**Q:** ...` / `**A:** ...`)
+                - `## 🧠 Fast Recall Q&A` (15-20 concise flashcard pairs `**Q:** ...` / `**A:** ...`)
 
                 ---
                 TRANSCRIPT FOR VIDEO "%s":
@@ -768,23 +775,24 @@ public class GeminiService {
     private String buildHandwrittenChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean includeDiagrams) {
         boolean isFinalChunk = (chunkIndex == totalChunks - 1);
         String finalInstruction = isFinalChunk ?
-                "4. FINAL PART: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section). Cover all concepts up to the end and conclude with '🎓 Notebook Summary & Key Takeaways'." : "";
+                "4. FINAL PART: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section of the video). Cover all concepts up to the very last second and conclude with '🎓 Notebook Summary & Key Takeaways'." : "";
 
         return """
-                You are writing neat, concise student handwritten notebook notes for PART %d of %d of the video titled "%s".
+                You are a dedicated student writing neat, deeply comprehensive handwritten notebook study notes for PART %d of %d of the video titled "%s".
 
-                GUIDELINES:
-                1. Cover every concept in THIS section thoroughly up to the last second of this chunk.
+                GUIDELINES & HUMAN NOTEBOOK FORMAT:
+                1. 100%% EXHAUSTIVE COVERAGE: Explain every concept, term, formula, code pattern, and insight in THIS section thoroughly from first line to last line.
                 2. Notebook formatting:
                    - `#` and `##` for section titles
                    - `> 📖 **Definition: [Term]**` for key definitions
-                   - `★ **Important:** [Key concept]` for critical takeaways
+                   - `★ **Important:** [Key concept / exam takeaway]` for critical points
                    - `→` for sequential steps and bullet points
-                   - `> 📐 **Formula / Syntax:**` for formulas and core code
-                   - `> 💡 **Example:**` for short intuitive examples
+                   - `> 📐 **Formula / Syntax:**` with formulas and code syntax
+                   - `> 💡 **Example:**` for concrete worked examples
+                   - `> ⚠️ **Common Mistake:**` for errors to watch out for
                 3. %s
                 %s
-                4. No filler, fluff, or conversational intro.
+                4. No fluff or conversational intro. Start directly with the section content.
 
                 ---
                 Transcript Chunk %d of %d for "%s":

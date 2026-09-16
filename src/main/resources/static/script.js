@@ -448,10 +448,15 @@ function markdownToHtml(md, isHandwritten = false) {
     return `<p><span class="note-important">★ ${imp ? imp + ' ' : ''}${text}</span></p>`;
   });
 
-  // Blockquotes with handwritten tags
+  // Blockquotes with handwritten tags (with multi-line support)
   html = html.replace(/^&gt;\s*📖\s*<strong>Definition:?(.*?)<\/strong>\s*(.*)$/gm, '<div class="note-definition"><strong>📖 Definition$1:</strong> $2</div>');
   html = html.replace(/^&gt;\s*📐\s*<strong>(Formula.*?|Syntax.*?)<\/strong>\s*(.*)$/gm, '<div class="note-formula"><strong>📐 $1:</strong> $2</div>');
   html = html.replace(/^&gt;\s*💡\s*<strong>Example:?(.*?)<\/strong>\s*(.*)$/gm, '<div class="note-example"><strong>💡 Example$1:</strong> $2</div>');
+  html = html.replace(/^&gt;\s*⚠️\s*<strong>(Common Mistake.*?|Warning.*?)<\/strong>\s*(.*)$/gm, '<div class="note-warning"><strong>⚠️ $1:</strong> $2</div>');
+  html = html.replace(/^&gt;\s*📌\s*<strong>(Key Takeaway.*?|Takeaway.*?)<\/strong>\s*(.*)$/gm, '<div class="note-takeaway"><strong>📌 $1:</strong> $2</div>');
+
+  // Multi-line continuation inside handwritten callouts
+  html = html.replace(/(<div class="note-(?:definition|formula|example|warning|takeaway)">[\s\S]*?)(<\/div>)\n&gt;\s+(.+)$/gm, '$1<br>$3$2');
 
   // Standard Blockquotes
   html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
@@ -506,10 +511,10 @@ function markdownToHtml(md, isHandwritten = false) {
     '<p>$1</p>'
   );
 
-  // Restore Mermaid diagram blocks (clean & uncorrupted)
+  // Restore Mermaid diagram blocks with hand-drawn header title
   mermaidBlocks.forEach((code, idx) => {
     const placeholderRegex = new RegExp(`(?:<p>)?___MERMAID_BLOCK_${idx}___(?:<\\/p>)?`, 'g');
-    const diagramHtml = `<div class="handwritten-diagram"><div class="mermaid">${escapeHtml(code)}</div></div>`;
+    const diagramHtml = `<div class="handwritten-diagram"><div class="diagram-title">✏️ Hand-Drawn Diagram / Architecture</div><div class="mermaid">${escapeHtml(code)}</div></div>`;
     html = html.replace(placeholderRegex, diagramHtml);
   });
 
@@ -624,6 +629,18 @@ async function renderMermaidDiagrams(container) {
       theme: 'neutral',
       look: 'handDrawn',
       fontFamily: 'Kalam, cursive',
+      themeVariables: {
+        fontFamily: 'Kalam, cursive',
+        fontSize: '15px',
+        primaryColor: '#fef3c7',
+        primaryTextColor: '#0f2d59',
+        primaryBorderColor: '#3b82f6',
+        lineColor: '#2563eb',
+        secondaryColor: '#fce7f3',
+        tertiaryColor: '#dcfce7',
+        mainBkg: '#fffdfa',
+        nodeBorder: '#2563eb'
+      },
       securityLevel: 'loose'
     });
     if (typeof mermaid.parseError === 'function') {

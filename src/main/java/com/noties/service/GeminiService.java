@@ -71,9 +71,15 @@ public class GeminiService {
 
     // ── Public API Methods ──────────────────────────────────────────────
 
-    // Generate detailed notes and revision sheet for a short video
+    // Generate detailed notes and revision sheet for a short video (backwards compatible)
     public Map<String, String> generateNotes(String videoTitle, String transcript) {
-        String prompt = buildCombinedNotesPrompt(videoTitle, transcript);
+        return generateNotes(videoTitle, transcript, false, false);
+    }
+
+    public Map<String, String> generateNotes(String videoTitle, String transcript, boolean isHandwritten, boolean includeDiagrams) {
+        String prompt = isHandwritten
+                ? buildHandwrittenNotesPrompt(videoTitle, transcript, includeDiagrams)
+                : buildCombinedNotesPrompt(videoTitle, transcript);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -87,9 +93,15 @@ public class GeminiService {
         return Map.of("detailed", detailed, "revision", revision);
     }
 
-    // Generate notes for a single chunk of a long video
+    // Generate notes for a single chunk of a long video (backwards compatible)
     public String generateNotesForChunk(String videoTitle, String chunk, int chunkIndex, int totalChunks) {
-        String prompt = buildChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks);
+        return generateNotesForChunk(videoTitle, chunk, chunkIndex, totalChunks, false, false);
+    }
+
+    public String generateNotesForChunk(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean isHandwritten, boolean includeDiagrams) {
+        String prompt = isHandwritten
+                ? buildHandwrittenChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks, includeDiagrams)
+                : buildChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -97,9 +109,15 @@ public class GeminiService {
         return callWithRetry(body, chunkIndex);
     }
 
-    // Combine chunk notes into one consolidated revision sheet
+    // Combine chunk notes into one consolidated revision sheet (backwards compatible)
     public String generateConsolidatedRevision(String videoTitle, List<String> allChunkNotes) {
-        String prompt = buildMergePrompt(videoTitle, allChunkNotes);
+        return generateConsolidatedRevision(videoTitle, allChunkNotes, false, false);
+    }
+
+    public String generateConsolidatedRevision(String videoTitle, List<String> allChunkNotes, boolean isHandwritten, boolean includeDiagrams) {
+        String prompt = isHandwritten
+                ? buildHandwrittenMergePrompt(videoTitle, allChunkNotes, includeDiagrams)
+                : buildMergePrompt(videoTitle, allChunkNotes);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -109,21 +127,27 @@ public class GeminiService {
 
     // Overload without listener for backwards compatibility
     public Map<String, String> generateNotesFromMetadata(String videoTitle, String description, String author, String duration, List<String> keywords) {
-        return generateNotesFromMetadata(videoTitle, description, author, duration, keywords, null);
+        return generateNotesFromMetadata(videoTitle, description, author, duration, keywords, false, false, null);
+    }
+
+    public Map<String, String> generateNotesFromMetadata(String videoTitle, String description, String author, String duration, List<String> keywords, ProgressListener listener) {
+        return generateNotesFromMetadata(videoTitle, description, author, duration, keywords, false, false, listener);
     }
 
     // Generate detailed notes and revision sheet from video metadata (title, description, author, duration, keywords)
-    public Map<String, String> generateNotesFromMetadata(String videoTitle, String description, String author, String duration, List<String> keywords, ProgressListener listener) {
+    public Map<String, String> generateNotesFromMetadata(String videoTitle, String description, String author, String duration, List<String> keywords, boolean isHandwritten, boolean includeDiagrams, ProgressListener listener) {
         boolean isLongCourse = duration != null && (duration.contains("Hours") || duration.contains("hour") || duration.contains("hr"));
 
         if (isLongCourse) {
-            log.info("Long full-course video detected in metadata mode (duration: {}). Generating 4 comprehensive course parts + revision sheet...", duration);
+            log.info("Long full-course video detected in metadata mode (duration: {}, handwritten: {}). Generating 4 comprehensive course parts + revision sheet...", duration, isHandwritten);
             List<String> partsList = new ArrayList<>();
 
             // Part 1: Foundations & Core Architecture
             if (listener != null) listener.onProgress("Generating Part 1 of 4: Foundations & Core Architecture...", 35);
             try {
-                String prompt1 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1);
+                String prompt1 = isHandwritten
+                        ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1, includeDiagrams)
+                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1);
                 String p1 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt1)))),
                         "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -136,7 +160,9 @@ public class GeminiService {
             // Part 2: State Management, Forms & Effect Hooks
             if (listener != null) listener.onProgress("Generating Part 2 of 4: State Management & Essential Hooks...", 50);
             try {
-                String prompt2 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2);
+                String prompt2 = isHandwritten
+                        ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2, includeDiagrams)
+                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2);
                 String p2 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt2)))),
                         "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -149,7 +175,9 @@ public class GeminiService {
             // Part 3: Advanced Hooks, Routing & Global State Management
             if (listener != null) listener.onProgress("Generating Part 3 of 4: Advanced Hooks, Routing & Global State...", 65);
             try {
-                String prompt3 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3);
+                String prompt3 = isHandwritten
+                        ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3, includeDiagrams)
+                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3);
                 String p3 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt3)))),
                         "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -162,7 +190,9 @@ public class GeminiService {
             // Part 4: Real-World Projects, Performance Optimization & Production Deployment
             if (listener != null) listener.onProgress("Generating Part 4 of 4: Real-World Projects & Production Deployment...", 80);
             try {
-                String prompt4 = buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4);
+                String prompt4 = isHandwritten
+                        ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4, includeDiagrams)
+                        : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4);
                 String p4 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt4)))),
                         "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -176,7 +206,9 @@ public class GeminiService {
             if (listener != null) listener.onProgress("Creating comprehensive Quick Revision Sheet...", 90);
             String revisionNotes = "# Quick Revision\n\n*Included in detailed notes above.*";
             try {
-                String promptRev = buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
+                String promptRev = isHandwritten
+                        ? buildHandwrittenMetadataRevisionPrompt(videoTitle, description, author, duration, keywords)
+                        : buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
                 revisionNotes = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", promptRev)))),
                         "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -190,7 +222,9 @@ public class GeminiService {
 
         } else {
             if (listener != null) listener.onProgress("Generating complete study guide from video outline...", 50);
-            String prompt = buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords);
+            String prompt = isHandwritten
+                    ? buildHandwrittenNotesPrompt(videoTitle, (description != null ? description : "") + "\nKeywords: " + keywords, includeDiagrams)
+                    : buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords);
             Map<String, Object> body = Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                     "generationConfig", Map.of("maxOutputTokens", 8192)
@@ -655,4 +689,189 @@ public class GeminiService {
                     **A:** [Direct, accurate answer]
                 """.formatted(videoTitle, videoTitle, durText, videoTitle, durText);
     }
+
+    // ── Handwritten Mode Prompts ───────────────────────────────────────
+
+    private String buildHandwrittenNotesPrompt(String videoTitle, String transcript, boolean includeDiagrams) {
+        String diagramInstruction = includeDiagrams ? """
+                6. SKETCH DIAGRAMS (ESSENTIAL & VALUABLE ONLY):
+                   - Wherever a visual diagram genuinely clarifies a flow, state machine, architecture, lifecycle, network, hierarchy, or comparison, insert a clean Mermaid.js diagram enclosed in a ```mermaid ... ``` code block.
+                   - Use clean, simple syntax (e.g. `flowchart TD`, `stateDiagram-v2`, `sequenceDiagram`, `mindmap`).
+                   - Keep diagrams concise (5 to 8 essential nodes maximum).
+                   - Do NOT insert unnecessary diagrams for trivial text or after every single paragraph.
+                """ : "6. NO DIAGRAMS: Do not include Mermaid diagrams; keep explanations in clean handwritten note format with bullet points and boxes.";
+
+        return """
+                You are generating concise, humanized handwritten-style study notes from a lecture transcript.
+                Create notes like a top engineering student would write in a neat, aesthetic notebook.
+
+                TARGET VIDEO TITLE: "%s"
+
+                RULES & NOTEBOOK GUIDELINES:
+                1. Preserve all important concepts, formulas, code snippets, and mechanisms without filler or repetition.
+                2. Use short, understandable sentences and clear hierarchy.
+                3. HEADINGS: Use `# Title`, `## Main Section`, `### Sub-Topic`.
+                4. DEFINITIONS: Put every core definition in a clear blockquote formatted as:
+                   > 📖 **Definition: [Term]**
+                   > [Clear, concise 1-2 sentence definition]
+                5. IMPORTANT EXAM POINTS: Highlight must-know points with:
+                   ★ **Important:** [Crucial concept, rule, or exam pitfall]
+                6. BULLET POINTS & ARROWS: Use `→` for progression/steps and `•` for item lists.
+                7. FORMULAS & SYNTAX: Enclose equations, syntax rules, or core snippets in:
+                   > 📐 **Formula / Syntax:**
+                   > `[Formula or key code syntax]`
+                8. PRACTICAL EXAMPLES:
+                   > 💡 **Example:** [Concrete, intuitive example]
+                9. %s
+                10. Never invent facts not covered in the transcript.
+
+                ---
+
+                **PART 1: Handwritten Detailed Study Notes**
+                Write complete, neat notebook notes based ONLY on the transcript from start to the very end of the video.
+
+                Then write EXACTLY this separator line on its own line:
+                ===REVISION_NOTES===
+
+                **PART 2: Handwritten Quick Revision Sheet**
+                Create a high-yield notebook cheat sheet:
+                - `## 📚 Key Concept Rapid Recap` (bullet points with `→`)
+                - `## ⚡ Core Rules & Definitions`
+                - `## 📝 Quick Syntax & Formula Cheat Box`
+                - `## 🧠 Fast Recall Q&A` (10-15 concise flashcard pairs `**Q:** ...` / `**A:** ...`)
+
+                ---
+                TRANSCRIPT FOR VIDEO "%s":
+                %s
+                """.formatted(videoTitle, diagramInstruction, videoTitle, transcript);
+    }
+
+    private String buildHandwrittenChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean includeDiagrams) {
+        boolean isFinalChunk = (chunkIndex == totalChunks - 1);
+        String finalInstruction = isFinalChunk ?
+                "4. FINAL PART: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section). Cover all concepts up to the end and conclude with '🎓 Notebook Summary & Key Takeaways'." : "";
+
+        String diagramInstruction = includeDiagrams ?
+                "- If this section contains a state flow, process, component tree, or architecture, include a simple Mermaid diagram (```mermaid ... ```). Keep it clean with 4-7 nodes." :
+                "- Do not include diagrams.";
+
+        return """
+                You are writing neat, concise student handwritten notebook notes for PART %d of %d of the video titled "%s".
+
+                GUIDELINES:
+                1. Cover every concept in THIS section thoroughly up to the last second of this chunk.
+                2. Notebook formatting:
+                   - `#` and `##` for section titles
+                   - `> 📖 **Definition: [Term]**` for key definitions
+                   - `★ **Important:** [Key concept]` for critical takeaways
+                   - `→` for sequential steps and bullet points
+                   - `> 📐 **Formula / Syntax:**` for formulas and core code
+                   - `> 💡 **Example:**` for short intuitive examples
+                3. %s
+                %s
+                4. No filler, fluff, or conversational intro.
+
+                ---
+                Transcript Chunk %d of %d for "%s":
+                %s
+                """.formatted(chunkIndex + 1, totalChunks, videoTitle, diagramInstruction, finalInstruction, chunkIndex + 1, totalChunks, videoTitle, chunk);
+    }
+
+    private String buildHandwrittenMergePrompt(String videoTitle, List<String> allChunkNotes, boolean includeDiagrams) {
+        String combined = String.join("\n\n---\n\n", allChunkNotes);
+        String diagramInstruction = includeDiagrams ?
+                "- Include 1-2 overarching Mermaid roadmap / summary flowcharts (```mermaid ... ```) connecting the entire topic." :
+                "- Do not include diagrams.";
+
+        return """
+                You are creating an aesthetic Quick Revision Notebook Cheat Sheet compiled from %d sections of the video titled "%s".
+
+                STRUCTURE:
+                # ✍️ Quick Revision Sheet: %s
+
+                ## 📚 Complete Topic-by-Topic Recap
+                - Bulleted points with `→` covering each module in order.
+
+                ## ⚡ Core Definitions & Exam Rules
+                - Key definitions formatted with `> 📖 **Definition: [Term]**` and `★ **Important:**`.
+
+                ## 📝 Syntax & Formula Reference Box
+                - Concise tables and syntax snippets.
+
+                %s
+
+                ## 🧠 Quick Flashcard Recall
+                - 15-20 rapid questions & answers (`**Q:** ...` / `**A:** ...`).
+
+                ---
+                Compiled Notes from all parts of "%s":
+                %s
+                """.formatted(allChunkNotes.size(), videoTitle, videoTitle, diagramInstruction, videoTitle, combined);
+    }
+
+    private String buildHandwrittenMetadataPartPrompt(String videoTitle, String description, String author, String duration, List<String> keywords, int partNum, boolean includeDiagrams) {
+        String kwList = (keywords != null && !keywords.isEmpty()) ? String.join(", ", keywords) : "N/A";
+        String descText = (description != null && !description.isBlank()) ? description.trim() : "No detailed description provided.";
+        String durText = (duration != null && !duration.isBlank()) ? duration : "Full Length Course";
+
+        String sectionFocus = switch (partNum) {
+            case 1 -> "PART 1 OF 4: FOUNDATIONS & CORE ARCHITECTURE (Environment Setup, Core Concepts, Component Architecture, Props & Composition, Data Flow).";
+            case 2 -> "PART 2 OF 4: STATE MANAGEMENT, FORMS & EFFECT HOOKS (State Management, Form Handling, Conditional & List Rendering, Lifecycle & Effects).";
+            case 3 -> "PART 3 OF 4: ADVANCED HOOKS, ROUTING & GLOBAL STATE (Performance Hooks, Custom Hooks, Routing, Context API / Global State, Async Operations).";
+            default -> "PART 4 OF 4: REAL-WORLD PROJECTS, OPTIMIZATION & PRODUCTION DEPLOYMENT (Architecture Patterns, Error Handling, Optimization, Build & Cloud Deployment). Conclude with '🎓 Final Notebook Takeaways'.";
+        };
+
+        String diagramInstruction = includeDiagrams ?
+                "4. DIAGRAMS: Include 1-2 clean Mermaid.js flowcharts/diagrams (```mermaid ... ```) showing state flows, architecture, or lifecycles for this module." :
+                "4. DIAGRAMS: No diagrams.";
+
+        return """
+                You are creating handwritten-style notebook study notes for a student watching a comprehensive course.
+
+                COURSE INFO:
+                - Title: "%s" (%s)
+                - Channel / Author: %s
+                - Keywords: %s
+                - Focus: %s
+
+                OUTLINE:
+                %s
+
+                RULES:
+                1. Write in clear, structured notebook format with handwriting feel.
+                2. Use:
+                   - `##` Section Headings
+                   - `> 📖 **Definition: [Term]**` for definitions
+                   - `★ **Important:** [Key concept]` for exam notes
+                   - `→` for points & steps
+                   - `> 📐 **Formula / Syntax:**` with code or equations
+                   - `> 💡 **Example:**` for examples
+                3. %s
+                5. Do NOT include conversational intros. Start immediately with content.
+                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, sectionFocus, descText, diagramInstruction);
+    }
+
+    private String buildHandwrittenMetadataRevisionPrompt(String videoTitle, String description, String author, String duration, List<String> keywords) {
+        String durText = (duration != null && !duration.isBlank()) ? duration : "Full Length Course";
+
+        return """
+                You are creating an aesthetic Quick Revision Notebook Cheat Sheet covering the ENTIRE %s course titled "%s".
+
+                STRUCTURE:
+                # ✍️ Quick Revision Sheet: %s
+
+                ## 📚 Topic-by-Topic Fast Walkthrough
+                - Bulleted points with `→` covering each module from beginning to end.
+
+                ## ⚡ Must-Know Definitions & Core Laws
+                - Key definitions formatted with `> 📖 **Definition:**` and `★ **Important:**`.
+
+                ## 📝 Syntax, Commands & Formula Cheat Box
+                - Concise reference tables and syntax.
+
+                ## 🧠 High-Yield Flashcard Q&A
+                - 15-20 rapid-fire flashcard pairs (`**Q:** ...` / `**A:** ...`).
+                """.formatted(durText, videoTitle, videoTitle);
+    }
 }
+

@@ -8,7 +8,7 @@
   <meta name="keywords" content="YouTube notes, video notes, AI notes, study notes, video summarizer">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=JetBrains+Mono:wght@400;500;600&family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -370,6 +370,26 @@
             </button>
           </div>
 
+          <!-- Note Style & Diagram Options -->
+          <div class="note-options-wrapper" id="note-options-wrapper">
+            <div class="style-selector-group">
+              <span class="option-label">Notes Style:</span>
+              <div class="segmented-control" role="radiogroup" aria-label="Notes Style">
+                <button type="button" class="segment-btn active" data-style="normal" id="style-normal-btn">
+                  <span>📚 Normal</span>
+                </button>
+                <button type="button" class="segment-btn" data-style="handwritten" id="style-handwritten-btn">
+                  <span>✍️ Handwritten</span>
+                </button>
+              </div>
+            </div>
+            <label class="diagrams-checkbox-label" id="diagrams-option-wrapper" title="Include auto-generated diagrams in notes">
+              <input type="checkbox" id="include-diagrams-chk" checked>
+              <span class="custom-checkbox"></span>
+              <span class="checkbox-text">📊 Include diagrams</span>
+            </label>
+          </div>
+
           <!-- Video Preview -->
           <div class="video-preview" id="video-preview" style="display: none;">
             <img id="video-thumbnail" src="" alt="Video thumbnail" class="thumbnail">
@@ -516,6 +536,7 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js" integrity="sha512-MpDFIChbcXl2QgipQrt1VcPHMldRILetapBEoYPSMHBqtPdJFdRDDH/BOgQxKMnCDFahKBBN3KrCDxTxBW5dYA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

@@ -38,10 +38,10 @@ public class NotesController {
     // ── Generate Notes with SSE Progress Stream ──────────────────────────
 
     @PostMapping(value = "/generate-notes", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter generateNotes(@RequestBody Map<String, String> body) {
+    public SseEmitter generateNotes(@RequestBody Map<String, Object> body) {
         SseEmitter emitter = new SseEmitter(10 * 60 * 1000L); // 10 minutes timeout
 
-        String url = body.get("url");
+        String url = body.get("url") != null ? body.get("url").toString() : null;
         if (url == null || url.isBlank()) {
             sendError(emitter, "Please provide a YouTube video URL.");
             return emitter;
@@ -52,6 +52,21 @@ public class NotesController {
             sendError(emitter, "Invalid YouTube URL. Please check the link.");
             return emitter;
         }
+
+        String rawStyle = body.get("noteStyle") != null ? body.get("noteStyle").toString() : (body.get("style") != null ? body.get("style").toString() : "normal");
+        final String noteStyle = "handwritten".equalsIgnoreCase(rawStyle) ? "handwritten" : "normal";
+        final boolean isHandwritten = "handwritten".equals(noteStyle);
+
+        boolean incDiagrams = false;
+        if (body.get("includeDiagrams") != null) {
+            Object dVal = body.get("includeDiagrams");
+            if (dVal instanceof Boolean b) {
+                incDiagrams = b;
+            } else {
+                incDiagrams = Boolean.parseBoolean(dVal.toString());
+            }
+        }
+        final boolean includeDiagrams = incDiagrams;
 
         String requestId = UUID.randomUUID().toString().substring(0, 8);
 
@@ -69,8 +84,8 @@ public class NotesController {
                 String transcript = videoData.transcriptText();
                 int segmentCount = videoData.segmentCount();
 
-                log.info("[Req:{}] Video data retrieved for videoId '{}': title='{}', duration='{}', hasTranscript={}",
-                        requestId, videoId, title, duration, hasTranscript);
+                log.info("[Req:{}] Video data retrieved for videoId '{}': title='{}', duration='{}', hasTranscript={}, style={}, diagrams={}",
+                        requestId, videoId, title, duration, hasTranscript, noteStyle, includeDiagrams);
 
                 String detailedNotes;
                 String revisionNotes;
@@ -79,13 +94,13 @@ public class NotesController {
                 int CHUNK_SIZE = 35_000;
 
                 if (hasTranscript && transcript != null && !transcript.isBlank()) {
-                    sendProgress(emitter, "Transcript validated! Generating study notes...", 25);
+                    sendProgress(emitter, isHandwritten ? "Transcript validated! Writing handwritten notebook notes..." : "Transcript validated! Generating study notes...", 25);
                     String preview = transcript.substring(0, Math.min(200, transcript.length())).replace("\n", " ");
                     log.info("[Req:{}] Transcript mode. Chars: {}, Segments: {}. Preview: '{}'",
                             requestId, transcript.length(), segmentCount, preview);
 
                     if (transcript.length() < CHUNK_THRESHOLD) {
-                        var notes = gemini.generateNotes(title, transcript);
+                        var notes = gemini.generateNotes(title, transcript, isHandwritten, includeDiagrams);
                         detailedNotes = notes.getOrDefault("detailed", "");
                         revisionNotes = notes.getOrDefault("revision", "");
                     } else {
@@ -99,9 +114,9 @@ public class NotesController {
                             int idx = i;
                             String chunk = chunks.get(i);
                             int progress = 25 + Math.round(((float) (idx + 1) / chunks.size()) * 60);
-                            sendProgress(emitter, "Generating detailed notes for Part " + (idx + 1) + " of " + chunks.size() + "...", progress);
+                            sendProgress(emitter, (isHandwritten ? "Writing handwritten notes for Part " : "Generating detailed notes for Part ") + (idx + 1) + " of " + chunks.size() + "...", progress);
 
-                            String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size());
+                            String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size(), isHandwritten, includeDiagrams);
                             if (chunkNotes != null && !chunkNotes.isBlank()) {
                                 chunkResults.add(chunkNotes);
                             }
@@ -110,13 +125,13 @@ public class NotesController {
                         detailedNotes = String.join("\n\n---\n\n", chunkResults);
 
                         sendProgress(emitter, "Creating comprehensive Quick Revision Sheet for all " + chunks.size() + " parts...", 90);
-                        revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults);
+                        revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults, isHandwritten, includeDiagrams);
                     }
                 } else {
                     log.info("[Req:{}] Transcript unavailable. Generating notes from video outline and metadata for '{}'", requestId, title);
                     sendProgress(emitter, "Analyzing video outline & content structure...", 35);
 
-                    var notes = gemini.generateNotesFromMetadata(title, description, author, duration, keywords, (msg, prog) -> sendProgress(emitter, msg, prog));
+                    var notes = gemini.generateNotesFromMetadata(title, description, author, duration, keywords, isHandwritten, includeDiagrams, (msg, prog) -> sendProgress(emitter, msg, prog));
                     detailedNotes = notes.getOrDefault("detailed", "");
                     revisionNotes = notes.getOrDefault("revision", "");
                 }
@@ -124,15 +139,16 @@ public class NotesController {
                 log.info("[Req:{}] Note generation complete for videoId: '{}'", requestId, videoId);
 
                 // Send complete event with full payload
-                Map<String, Object> completeEvent = Map.of(
-                        "type", "complete",
-                        "requestId", requestId,
-                        "notes", detailedNotes,
-                        "revision", revisionNotes,
-                        "videoId", videoId,
-                        "videoTitle", title,
-                        "transcriptLength", segmentCount
-                );
+                Map<String, Object> completeEvent = new HashMap<>();
+                completeEvent.put("type", "complete");
+                completeEvent.put("requestId", requestId);
+                completeEvent.put("notes", detailedNotes);
+                completeEvent.put("revision", revisionNotes);
+                completeEvent.put("videoId", videoId);
+                completeEvent.put("videoTitle", title);
+                completeEvent.put("transcriptLength", segmentCount);
+                completeEvent.put("noteStyle", noteStyle);
+                completeEvent.put("includeDiagrams", includeDiagrams);
 
                 emitter.send(SseEmitter.event().data(mapper.writeValueAsString(completeEvent)).build());
                 emitter.complete();

@@ -2158,3 +2158,327 @@ body {
   margin-top: 8px;
   font-weight: 500;
 }
+
+/* ========================================
+   Note Style Selector & Diagram Options
+   ======================================== */
+.note-options-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  margin-top: 20px;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 2px solid var(--accent-pink-light);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(255, 182, 193, 0.12);
+}
+
+.style-selector-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.option-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.segmented-control {
+  display: inline-flex;
+  background: var(--bg-primary);
+  border: 2px solid var(--accent-pink-light);
+  border-radius: 100px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.segment-btn {
+  background: transparent;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 100px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s var(--ease-spring);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.segment-btn:hover {
+  color: var(--accent-pink-dark);
+}
+
+.segment-btn.active {
+  background: var(--gradient-main);
+  color: white;
+  box-shadow: 0 2px 8px rgba(255, 92, 138, 0.35);
+}
+
+.diagrams-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: opacity 0.2s;
+}
+
+.diagrams-checkbox-label input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.custom-checkbox {
+  width: 20px;
+  height: 20px;
+  background: white;
+  border: 2px solid var(--accent-pink-medium);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s var(--ease-spring);
+  flex-shrink: 0;
+}
+
+.diagrams-checkbox-label input[type="checkbox"]:checked + .custom-checkbox {
+  background: var(--accent-pink-dark);
+  border-color: var(--accent-pink-dark);
+}
+
+.diagrams-checkbox-label input[type="checkbox"]:checked + .custom-checkbox::after {
+  content: '✓';
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* ========================================
+   Handwritten Notebook Notes Mode
+   ======================================== */
+.notes-content.handwritten-mode,
+.handwritten-notes {
+  font-family: 'Kalam', cursive, sans-serif !important;
+  font-size: 17px;
+  line-height: 32px;
+  color: #1a2f4c;
+}
+
+.notebook-page {
+  background-color: #fffdf8;
+  background-image: 
+    linear-gradient(90deg, transparent 52px, #ffccd5 52px, #ffccd5 54px, transparent 54px),
+    repeating-linear-gradient(transparent, transparent 31px, rgba(120, 165, 220, 0.2) 31px, rgba(120, 165, 220, 0.2) 32px);
+  border-radius: var(--radius-lg);
+  border: 2px solid #ecd8c8;
+  padding: 30px 32px 30px 68px;
+  margin-bottom: 24px;
+  box-shadow: 
+    0 4px 16px rgba(180, 150, 130, 0.12),
+    inset 0 0 40px rgba(255, 250, 240, 0.6);
+  position: relative;
+}
+
+.notebook-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20px;
+  bottom: 0;
+  width: 14px;
+  background: radial-gradient(circle, #e6ded8 3.5px, transparent 4px);
+  background-size: 14px 44px;
+  background-position: 0 20px;
+  opacity: 0.6;
+}
+
+.handwritten-notes h1,
+.notes-content.handwritten-mode h1 {
+  font-family: 'Kalam', cursive, sans-serif !important;
+  font-size: 32px;
+  font-weight: 700;
+  color: #1a365d;
+  background: none;
+  -webkit-text-fill-color: #1a365d;
+  border-bottom: 3px solid #ff85a1;
+  padding-bottom: 6px;
+  margin-top: 10px;
+  margin-bottom: 22px;
+  letter-spacing: 0.5px;
+}
+
+.handwritten-notes h2,
+.notes-content.handwritten-mode h2 {
+  font-family: 'Kalam', cursive, sans-serif !important;
+  font-size: 24px;
+  font-weight: 700;
+  color: #2b4c7e;
+  border-bottom: 2px dashed rgba(255, 133, 161, 0.6);
+  padding-bottom: 4px;
+  margin-top: 32px;
+  margin-bottom: 16px;
+}
+
+.handwritten-notes h3,
+.notes-content.handwritten-mode h3 {
+  font-family: 'Kalam', cursive, sans-serif !important;
+  font-size: 20px;
+  font-weight: 700;
+  color: #9d2b56;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+
+.handwritten-notes p,
+.notes-content.handwritten-mode p {
+  font-family: 'Kalam', cursive, sans-serif !important;
+  margin-bottom: 14px;
+  color: #1a2f4c;
+}
+
+/* Boxed Definitions */
+.note-definition {
+  background: #f7fbff;
+  border: 2px dashed #93c5fd;
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin: 18px 0;
+  color: #1e3a8a;
+  box-shadow: 2px 3px 0 rgba(147, 197, 253, 0.3);
+  line-height: 28px;
+}
+
+.note-definition strong {
+  color: #1d4ed8 !important;
+}
+
+/* Starred & Important Points */
+.note-important {
+  background: linear-gradient(104deg, rgba(255, 230, 100, 0) 0.9%, rgba(255, 235, 120, 0.9) 2.4%, rgba(255, 235, 120, 0.6) 5.8%, rgba(255, 235, 120, 0.25) 93%, rgba(255, 235, 120, 0.75) 96%);
+  border-radius: 6px;
+  padding: 2px 8px;
+  display: inline;
+  font-weight: 700;
+  color: #3b2800 !important;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.note-important-block {
+  background: #fffbeb;
+  border-left: 5px solid #f59e0b;
+  border-radius: 0 10px 10px 0;
+  padding: 10px 16px;
+  margin: 16px 0;
+  color: #78350f;
+  font-weight: 600;
+}
+
+/* Formulas */
+.note-formula {
+  background: #f8fafc;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 18px;
+  margin: 16px 0;
+  font-family: 'JetBrains Mono', 'Kalam', monospace;
+  color: #0f172a;
+  text-align: center;
+  font-size: 16px;
+  box-shadow: 2px 3px 0 #e2e8f0;
+}
+
+/* Examples */
+.note-example {
+  background: #fff8f5;
+  border-left: 4px solid #fb923c;
+  border-radius: 0 10px 10px 0;
+  padding: 10px 16px;
+  margin: 16px 0;
+  color: #9a3412;
+}
+
+/* Mermaid / Sketch Diagram Container */
+.handwritten-diagram {
+  background: #ffffff;
+  border: 2px dashed rgba(140, 170, 210, 0.7);
+  border-radius: 16px;
+  padding: 24px 16px;
+  margin: 24px 0;
+  text-align: center;
+  overflow-x: auto;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.handwritten-diagram .diagram-title {
+  font-family: 'Kalam', cursive, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.handwritten-diagram svg {
+  max-width: 100%;
+  height: auto;
+  font-family: 'Kalam', cursive, sans-serif !important;
+}
+
+/* Responsive adjustment for notebook */
+@media (max-width: 768px) {
+  .note-options-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .notebook-page {
+    padding: 24px 18px 24px 44px;
+    background-image: 
+      linear-gradient(90deg, transparent 34px, #ffccd5 34px, #ffccd5 36px, transparent 36px),
+      repeating-linear-gradient(transparent, transparent 31px, rgba(120, 165, 220, 0.2) 31px, rgba(120, 165, 220, 0.2) 32px);
+  }
+
+  .notebook-page::before {
+    left: 10px;
+    width: 10px;
+    background-size: 10px 44px;
+  }
+}
+
+/* PDF Print styling */
+@media print {
+  .notebook-page {
+    background: #ffffff !important;
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+  .handwritten-diagram {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    border: 1px dashed #aaa !important;
+  }
+}
+

@@ -28,6 +28,11 @@ const notesTimestampEl = $('#notes-timestamp');
 const timestampGenerated = $('#timestamp-generated');
 const timestampEdited = $('#timestamp-edited');
 
+// Note Style & Diagram Options
+const styleNormalBtn = $('#style-normal-btn');
+const styleHandwrittenBtn = $('#style-handwritten-btn');
+const includeDiagramsChk = $('#include-diagrams-chk');
+
 // Tab Elements
 const tabDetailed = $('#tab-detailed');
 const tabRevision = $('#tab-revision');
@@ -56,6 +61,9 @@ let generatedAt = null;   // ISO string — when notes were generated
 let lastEditedAt = null;  // ISO string — when notes were last edited
 let currentRequestId = 0;
 let activeFetchController = null;
+let selectedNoteStyle = localStorage.getItem('notes_selected_style') || 'normal';
+let selectedIncludeDiagrams = localStorage.getItem('notes_include_diagrams') !== 'false';
+let currentNoteStyle = 'normal'; // style of currently rendered notes
 
 // ----------------------------------------
 //  Timestamp Helpers
@@ -287,18 +295,105 @@ function stopLoadingAnimation() {
 }
 
 // ----------------------------------------
-//  Markdown to HTML Converter
+//  Markdown & Structured Notes to HTML Converter
 // ----------------------------------------
 
-function markdownToHtml(md) {
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function parseAndRenderNotes(content, isHandwritten = false) {
+  if (!content) return '';
+  
+  // Defensive check for structured JSON format
+  let trimmed = content.trim();
+  if (trimmed.startsWith('```json')) {
+    trimmed = trimmed.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+  }
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const obj = JSON.parse(trimmed);
+      if (obj && (obj.title || obj.sections)) {
+        return renderStructuredJsonToHtml(obj, isHandwritten);
+      }
+    } catch (e) {
+      // Graceful fallback to markdown
+    }
+  }
+
+  return markdownToHtml(content, isHandwritten);
+}
+
+function renderStructuredJsonToHtml(data, isHandwritten = false) {
+  let html = '';
+  if (data.title) {
+    html += `<h1>${escapeHtml(data.title)}</h1>\n`;
+  }
+  if (Array.isArray(data.sections)) {
+    data.sections.forEach(sec => {
+      if (sec.heading) {
+        html += `<h2>${escapeHtml(sec.heading)}</h2>\n`;
+      }
+      if (Array.isArray(sec.content)) {
+        sec.content.forEach(item => {
+          if (typeof item === 'string') {
+            html += `<p>${escapeHtml(item)}</p>\n`;
+          } else if (item && typeof item === 'object') {
+            if (item.type === 'definition') {
+              html += `<div class="note-definition"><strong>📖 Definition:</strong> ${escapeHtml(item.text || item.term || '')}</div>\n`;
+            } else if (item.type === 'important') {
+              html += `<div class="note-important-block"><span class="note-important">★ Important:</span> ${escapeHtml(item.text || '')}</div>\n`;
+            } else if (item.type === 'formula') {
+              html += `<div class="note-formula"><strong>📐 Formula / Syntax:</strong> <code>${escapeHtml(item.text || item.formula || '')}</code></div>\n`;
+            } else if (item.type === 'example') {
+              html += `<div class="note-example"><strong>💡 Example:</strong> ${escapeHtml(item.text || '')}</div>\n`;
+            } else if (item.type === 'diagram') {
+              let diagramCode = item.code || '';
+              if (!diagramCode && item.nodes && item.connections) {
+                diagramCode = 'flowchart TD\n' + item.connections.map(c => '    ' + c.replace('->', '-->')).join('\n');
+              }
+              if (diagramCode) {
+                const titleHtml = item.title ? `<div class="diagram-title">📊 ${escapeHtml(item.title)}</div>` : '';
+                html += `<div class="handwritten-diagram">${titleHtml}<div class="mermaid">${escapeHtml(diagramCode)}</div></div>\n`;
+              }
+            } else {
+              html += `<p>${escapeHtml(item.text || JSON.stringify(item))}</p>\n`;
+            }
+          }
+        });
+      }
+    });
+  }
+  
+  if (isHandwritten) {
+    return `<div class="notebook-page">${html}</div>`;
+  }
+  return html;
+}
+
+function markdownToHtml(md, isHandwritten = false) {
+  if (!md) return '';
   let html = md;
+
+  // Extract Mermaid diagram code blocks before HTML escaping
+  const mermaidBlocks = [];
+  html = html.replace(/```mermaid\s*\n([\s\S]*?)```/gi, (_, code) => {
+    const idx = mermaidBlocks.length;
+    mermaidBlocks.push(code.trim());
+    return `___MERMAID_BLOCK_${idx}___`;
+  });
 
   html = html
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  // Code blocks
+  // Code blocks (non-mermaid)
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
     return `<pre><code class="language-${lang || 'text'}">${code.trim()}</code></pre>`;
   });
@@ -320,7 +415,17 @@ function markdownToHtml(md) {
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // Blockquotes
+  // Starred / Important notes: ★ **Important:** ... or ★ ...
+  html = html.replace(/(?:★|\u2605)\s*(<strong>Important:?<\/strong>|Important:?)?\s*(.+)$/gm, (_, imp, text) => {
+    return `<p><span class="note-important">★ ${imp ? imp + ' ' : ''}${text}</span></p>`;
+  });
+
+  // Blockquotes with handwritten tags
+  html = html.replace(/^&gt;\s*📖\s*<strong>Definition:?(.*?)<\/strong>\s*(.*)$/gm, '<div class="note-definition"><strong>📖 Definition$1:</strong> $2</div>');
+  html = html.replace(/^&gt;\s*📐\s*<strong>(Formula.*?|Syntax.*?)<\/strong>\s*(.*)$/gm, '<div class="note-formula"><strong>📐 $1:</strong> $2</div>');
+  html = html.replace(/^&gt;\s*💡\s*<strong>Example:?(.*?)<\/strong>\s*(.*)$/gm, '<div class="note-example"><strong>💡 Example$1:</strong> $2</div>');
+
+  // Standard Blockquotes
   html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
   html = html.replace(/<\/blockquote>\n<blockquote>/g, '\n');
 
@@ -357,8 +462,8 @@ function markdownToHtml(md) {
     }
   );
 
-  // Unordered lists
-  html = html.replace(/^(\s*)[-*] (.+)$/gm, (_, indent, content) => {
+  // Unordered lists (including → arrows)
+  html = html.replace(/^(\s*)(?:[-*]|→)\s+(.+)$/gm, (_, indent, content) => {
     const level = Math.floor(indent.length / 2);
     return `<li style="margin-left: ${level * 20}px">${content}</li>`;
   });
@@ -367,15 +472,68 @@ function markdownToHtml(md) {
   // Ordered lists
   html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
 
+  // Restore Mermaid diagram blocks
+  mermaidBlocks.forEach((code, idx) => {
+    const placeholder = `___MERMAID_BLOCK_${idx}___`;
+    const diagramHtml = `<div class="handwritten-diagram"><div class="mermaid">${code}</div></div>`;
+    html = html.replace(placeholder, diagramHtml);
+  });
+
   // Paragraphs
   html = html.replace(
-    /^(?!<[a-z/])((?!<).+)$/gm,
+    /^(?!<(?:[a-z/]|div|pre|blockquote|table|ul|ol|li|hr|h1|h2|h3|h4|h5|h6|span))((?!<).+)$/gm,
     '<p>$1</p>'
   );
 
   html = html.replace(/\n{3,}/g, '\n\n');
 
+  // Wrap in notebook-page if handwritten mode is active
+  if (isHandwritten && !html.includes('class="notebook-page"')) {
+    html = `<div class="notebook-page">${html}</div>`;
+  }
+
   return html;
+}
+
+// ----------------------------------------
+//  Mermaid Diagram Renderer (Async & Safe)
+// ----------------------------------------
+
+async function renderMermaidDiagrams(container) {
+  if (!container || !window.mermaid) return;
+  const mermaidEls = container.querySelectorAll('.mermaid');
+  if (mermaidEls.length === 0) return;
+
+  try {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'neutral',
+      look: 'handDrawn',
+      fontFamily: 'Kalam, cursive',
+      securityLevel: 'loose'
+    });
+  } catch (e) {
+    console.warn('Mermaid init warning:', e);
+  }
+
+  for (let i = 0; i < mermaidEls.length; i++) {
+    const el = mermaidEls[i];
+    if (el.getAttribute('data-processed') === 'true') continue;
+    const code = el.textContent || '';
+    if (!code.trim()) continue;
+
+    const id = `mermaid-svg-${Date.now()}-${i}`;
+    try {
+      const { svg } = await mermaid.render(id, code.trim());
+      el.innerHTML = svg;
+      el.setAttribute('data-processed', 'true');
+    } catch (err) {
+      console.warn('Mermaid render error for diagram snippet:', err);
+      // Clean fallback: styled sketch representation
+      el.innerHTML = `<pre style="font-family: 'Kalam', cursive; font-size: 15px; color: #1e3a8a; text-align: left; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed #93c5fd;">${escapeHtml(code)}</pre>`;
+      el.setAttribute('data-processed', 'true');
+    }
+  }
 }
 
 // ----------------------------------------
@@ -427,12 +585,19 @@ function renderActiveTab() {
   // Exit edit mode when switching tabs
   if (isEditMode) disableEditMode();
   
+  const isHandwritten = currentNoteStyle === 'handwritten';
+  if (isHandwritten) {
+    notesContent.classList.add('handwritten-mode');
+  } else {
+    notesContent.classList.remove('handwritten-mode');
+  }
+
   if (activeTab === 'detailed') {
     // Check if this is pre-edited HTML content
     if (rawNotesMarkdown.startsWith('<!--HTML_EDITED-->')) {
       notesContent.innerHTML = rawNotesMarkdown.replace('<!--HTML_EDITED-->', '');
     } else {
-      notesContent.innerHTML = markdownToHtml(rawNotesMarkdown);
+      notesContent.innerHTML = parseAndRenderNotes(rawNotesMarkdown, isHandwritten);
     }
     tabDetailed.classList.add('active');
     tabRevision.classList.remove('active');
@@ -440,13 +605,14 @@ function renderActiveTab() {
     if (rawRevisionMarkdown.startsWith('<!--HTML_EDITED-->')) {
       notesContent.innerHTML = rawRevisionMarkdown.replace('<!--HTML_EDITED-->', '');
     } else {
-      notesContent.innerHTML = markdownToHtml(rawRevisionMarkdown);
+      notesContent.innerHTML = parseAndRenderNotes(rawRevisionMarkdown, isHandwritten);
     }
     tabRevision.classList.add('active');
     tabDetailed.classList.remove('active');
   }
   renderTimestamps();
   wrapTablesInNotes();
+  renderMermaidDiagrams(notesContent);
 }
 
 tabDetailed.addEventListener('click', () => {
@@ -590,6 +756,7 @@ function loadHistoryNotes(item) {
   rawRevisionMarkdown = item.revision || '# Quick Revision Notes\n\n*(No revision notes saved for this older entry)*';
   currentVideoId = item.videoId;
   currentVideoTitle = item.title;
+  currentNoteStyle = item.noteStyle || 'normal';
   generatedAt = item.generatedAt || null;
   lastEditedAt = item.lastEditedAt || null;
   
@@ -624,6 +791,53 @@ historyToggleBtn.addEventListener('click', () => toggleHistorySidebar(true));
 closeSidebarBtn.addEventListener('click', () => toggleHistorySidebar(false));
 historyOverlay.addEventListener('click', () => toggleHistorySidebar(false));
 clearHistoryBtn.addEventListener('click', clearAllHistory);
+
+// ----------------------------------------
+//  Note Style & Diagram Selector Controls
+// ----------------------------------------
+
+function setNoteStyle(style) {
+  selectedNoteStyle = style === 'handwritten' ? 'handwritten' : 'normal';
+  localStorage.setItem('notes_selected_style', selectedNoteStyle);
+  
+  if (styleNormalBtn && styleHandwrittenBtn) {
+    if (selectedNoteStyle === 'handwritten') {
+      styleHandwrittenBtn.classList.add('active');
+      styleNormalBtn.classList.remove('active');
+    } else {
+      styleNormalBtn.classList.add('active');
+      styleHandwrittenBtn.classList.remove('active');
+    }
+  }
+}
+
+function setIncludeDiagrams(include) {
+  selectedIncludeDiagrams = !!include;
+  localStorage.setItem('notes_include_diagrams', selectedIncludeDiagrams ? 'true' : 'false');
+  if (includeDiagramsChk) {
+    includeDiagramsChk.checked = selectedIncludeDiagrams;
+  }
+}
+
+if (styleNormalBtn) {
+  styleNormalBtn.addEventListener('click', () => {
+    setNoteStyle('normal');
+    triggerPandaBubble('Switched to Normal notes style! 📚');
+  });
+}
+
+if (styleHandwrittenBtn) {
+  styleHandwrittenBtn.addEventListener('click', () => {
+    setNoteStyle('handwritten');
+    triggerPandaBubble('Handwritten student notes mode active! ✍️🌸');
+  });
+}
+
+if (includeDiagramsChk) {
+  includeDiagramsChk.addEventListener('change', (e) => {
+    setIncludeDiagrams(e.target.checked);
+  });
+}
 
 // ----------------------------------------
 //  Generate Notes
@@ -661,6 +875,7 @@ async function generateNotes() {
   currentVideoTitle = '';
   rawNotesMarkdown = '';
   rawRevisionMarkdown = '';
+  currentNoteStyle = selectedNoteStyle;
   generatedAt = null;
   lastEditedAt = null;
   if (notesContent) notesContent.innerHTML = '';
@@ -674,11 +889,11 @@ async function generateNotes() {
   const progressText = document.getElementById('progress-text');
   const loadingTitle = document.getElementById('loading-title');
 
-  if (loadingTitle) loadingTitle.textContent = 'Generating Your Notes';
+  if (loadingTitle) loadingTitle.textContent = selectedNoteStyle === 'handwritten' ? 'Writing Handwritten Notes' : 'Generating Your Notes';
   if (progressContainer) progressContainer.style.display = 'block';
   if (progressFill) progressFill.style.width = '5%';
   if (progressText) progressText.textContent = 'Connecting...';
-  triggerPandaBubble('Writing notes and revision sheets... 📝');
+  triggerPandaBubble(selectedNoteStyle === 'handwritten' ? 'Writing neat notebook study notes... ✍️🌸' : 'Writing notes and revision sheets... 📝');
 
   const endpoint = '/api/generate-notes';
 
@@ -686,7 +901,11 @@ async function generateNotes() {
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({
+        url,
+        noteStyle: selectedNoteStyle,
+        includeDiagrams: selectedIncludeDiagrams
+      }),
       signal: activeFetchController.signal,
     });
 
@@ -767,6 +986,7 @@ async function generateNotes() {
           rawRevisionMarkdown = event.revision;
           currentVideoTitle = event.videoTitle || 'YouTube Video';
           currentVideoId = event.videoId || currentVideoId;
+          currentNoteStyle = event.noteStyle || selectedNoteStyle || 'normal';
           generatedAt = new Date().toISOString();
           lastEditedAt = null;
 
@@ -791,6 +1011,8 @@ async function generateNotes() {
             title: currentVideoTitle,
             notes: rawNotesMarkdown,
             revision: rawRevisionMarkdown,
+            noteStyle: currentNoteStyle,
+            includeDiagrams: selectedIncludeDiagrams,
             transcriptLength: event.transcriptLength,
             date: dateStr,
             generatedAt,
@@ -799,7 +1021,7 @@ async function generateNotes() {
 
           showInputAndNotes();
           notesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          triggerPandaBubble('Notes ready! 🎉🌸');
+          triggerPandaBubble(currentNoteStyle === 'handwritten' ? 'Handwritten notes ready! ✍️🎉🌸' : 'Notes ready! 🎉🌸');
         }
       }
       if (done) break;
@@ -875,7 +1097,10 @@ copyBtn.addEventListener('click', async () => {
 });
 
 downloadBtn.addEventListener('click', () => {
-  const title = activeTab === 'detailed' ? '📚 Detailed Study Notes' : '⚡ Quick Revision Notes';
+  const isHandwritten = currentNoteStyle === 'handwritten';
+  const title = activeTab === 'detailed'
+    ? (isHandwritten ? '✍️ Handwritten Detailed Study Notes' : '📚 Detailed Study Notes')
+    : (isHandwritten ? '✍️ Handwritten Quick Revision Notes' : '⚡ Quick Revision Notes');
   const subtitle = currentVideoTitle || 'YouTube Video';
 
   // Build timestamp line for PDF header
@@ -889,10 +1114,10 @@ downloadBtn.addEventListener('click', () => {
 
   // Create a temporary container for PDF rendering
   const pdfContainer = document.createElement('div');
-  pdfContainer.style.fontFamily = "'Segoe UI', 'Inter', sans-serif";
-  pdfContainer.style.color = '#2d2d2d';
-  pdfContainer.style.lineHeight = '1.75';
-  pdfContainer.style.fontSize = '14px';
+  pdfContainer.style.fontFamily = isHandwritten ? "'Kalam', 'Segoe UI', cursive, sans-serif" : "'Segoe UI', 'Inter', sans-serif";
+  pdfContainer.style.color = isHandwritten ? '#1a2f4c' : '#2d2d2d';
+  pdfContainer.style.lineHeight = isHandwritten ? '1.8' : '1.75';
+  pdfContainer.style.fontSize = isHandwritten ? '15px' : '14px';
   pdfContainer.style.padding = '20px';
   pdfContainer.style.background = '#ffffff';
   pdfContainer.style.width = '794px'; // standard A4 pixel width at 96 DPI
@@ -900,10 +1125,14 @@ downloadBtn.addEventListener('click', () => {
   pdfContainer.style.left = '-9999px';
   pdfContainer.style.top = '0';
 
+  if (isHandwritten) {
+    pdfContainer.classList.add('handwritten-mode');
+  }
+
   // Header
   pdfContainer.innerHTML = `
     <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #ffccd5;">
-      <h1 style="font-size: 22px; color: #e0457b; margin: 0 0 4px; border: none; padding: 0;">${title}</h1>
+      <h1 style="font-size: 22px; color: ${isHandwritten ? '#1a365d' : '#e0457b'}; margin: 0 0 4px; border: none; padding: 0; font-family: ${isHandwritten ? "'Kalam', cursive" : "inherit"};">${title}</h1>
       <p style="color: #8c6a71; font-size: 13px; margin: 0 0 4px;">${subtitle}</p>
       ${timestampLine ? `<p style="color: #a88a91; font-size: 11px; margin: 0;">🕐 ${timestampLine}</p>` : ''}
     </div>
@@ -913,7 +1142,7 @@ downloadBtn.addEventListener('click', () => {
   // Clean filename
   const safeTitle = subtitle.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '_').substring(0, 50);
   const dateStr = new Date().toISOString().split('T')[0];
-  const filename = `Noties_${safeTitle || 'Notes'}_${dateStr}.pdf`;
+  const filename = `Noties_${isHandwritten ? 'Handwritten_' : ''}${safeTitle || 'Notes'}_${dateStr}.pdf`;
 
   // Disable edit mode visually in the clone
   const editableDivs = pdfContainer.querySelectorAll('[contenteditable]');
@@ -933,7 +1162,7 @@ downloadBtn.addEventListener('click', () => {
     };
 
     showToast('Generating PDF... 📄');
-    triggerPandaBubble('Downloading your notes as PDF! 📄💖');
+    triggerPandaBubble(isHandwritten ? 'Exporting your handwritten notebook PDF! ✍️📄💖' : 'Downloading your notes as PDF! 📄💖');
 
     html2pdf().set(opt).from(pdfContainer).save().then(() => {
       document.body.removeChild(pdfContainer);
@@ -942,16 +1171,16 @@ downloadBtn.addEventListener('click', () => {
       console.error('PDF generation error:', err);
       if (pdfContainer.parentNode) document.body.removeChild(pdfContainer);
       showToast('Opening print dialog...', 'info');
-      fallbackPrintPDF(title, subtitle, timestampLine);
+      fallbackPrintPDF(title, subtitle, timestampLine, isHandwritten);
     });
   } else {
     document.body.removeChild(pdfContainer);
-    fallbackPrintPDF(title, subtitle, timestampLine);
+    fallbackPrintPDF(title, subtitle, timestampLine, isHandwritten);
   }
 });
 
 // Fallback PDF via print dialog (in case html2pdf fails)
-function fallbackPrintPDF(title, subtitle, timestampLine) {
+function fallbackPrintPDF(title, subtitle, timestampLine, isHandwritten = false) {
   const renderedHtml = notesContent.innerHTML;
   const printWindow = window.open('', '_blank');
   printWindow.document.write(`<!DOCTYPE html>
@@ -959,14 +1188,17 @@ function fallbackPrintPDF(title, subtitle, timestampLine) {
 <head>
   <meta charset="UTF-8">
   <title>${subtitle} — ${title}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Segoe UI', 'Inter', sans-serif;
-      color: #2d2d2d;
-      line-height: 1.75;
+      font-family: ${isHandwritten ? "'Kalam', cursive, sans-serif" : "'Segoe UI', 'Inter', sans-serif"};
+      color: ${isHandwritten ? '#1a2f4c' : '#2d2d2d'};
+      line-height: ${isHandwritten ? '1.8' : '1.75'};
       padding: 40px 48px;
-      font-size: 14px;
+      font-size: ${isHandwritten ? '16px' : '14px'};
       max-width: 800px;
       margin: 0 auto;
     }
@@ -976,15 +1208,21 @@ function fallbackPrintPDF(title, subtitle, timestampLine) {
       padding-bottom: 18px;
       border-bottom: 2px solid #ffccd5;
     }
-    .pdf-header h1 { font-size: 24px; color: #e0457b; margin-bottom: 4px; }
+    .pdf-header h1 { font-size: 24px; color: ${isHandwritten ? '#1a365d' : '#e0457b'}; margin-bottom: 4px; }
     .pdf-header p { color: #8c6a71; font-size: 13px; }
     .pdf-header .timestamp { color: #a88a91; font-size: 11px; }
-    h1 { font-size: 22px; color: #e0457b; margin: 24px 0 10px; border-bottom: 2px solid #ffccd5; padding-bottom: 6px; }
-    h2 { font-size: 18px; color: #e0457b; margin: 20px 0 8px; }
-    h3 { font-size: 15px; color: #ff5c8a; margin: 16px 0 6px; }
-    h4 { font-size: 14px; color: #ff85a1; margin: 12px 0 4px; }
+    h1 { font-size: 24px; color: #1a365d; margin: 24px 0 10px; border-bottom: 2px solid #ffccd5; padding-bottom: 6px; }
+    h2 { font-size: 20px; color: #2b4c7e; margin: 20px 0 8px; border-bottom: 1px dashed #ffccd5; }
+    h3 { font-size: 17px; color: #9d2b56; margin: 16px 0 6px; }
+    h4 { font-size: 15px; color: #ff85a1; margin: 12px 0 4px; }
     p { margin: 6px 0; }
-    strong { color: #4a373b; }
+    strong { color: #1d4ed8; }
+    .note-definition { background: #f7fbff; border: 1.5px dashed #93c5fd; border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+    .note-important { background: rgba(255, 235, 120, 0.7); padding: 2px 6px; border-radius: 4px; font-weight: 700; color: #3b2800; }
+    .note-formula { background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-family: monospace; }
+    .note-example { background: #fff8f5; border-left: 4px solid #fb923c; padding: 8px 12px; margin: 12px 0; }
+    .handwritten-diagram { page-break-inside: avoid; break-inside: avoid; border: 1px dashed #93c5fd; border-radius: 12px; padding: 16px; margin: 16px 0; text-align: center; }
+    .handwritten-diagram svg { max-width: 100%; height: auto; }
     pre {
       background: #f8f8f8;
       border: 1px solid #e0e0e0;
@@ -1644,6 +1882,9 @@ requestAnimationFrame(updatePandaPosition);
 // ----------------------------------------
 
 window.addEventListener('load', () => {
+  setNoteStyle(selectedNoteStyle);
+  setIncludeDiagrams(selectedIncludeDiagrams);
   renderHistoryList();
   setTimeout(() => urlInput.focus(), 300);
 });
+

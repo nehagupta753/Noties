@@ -868,9 +868,11 @@ public class GeminiService {
                    - Place ALL explanations, code snippets (e.g. @ExceptionHandler, handleGenericException, ResponseEntity<ApiError>, @RestControllerAdvice), definitions, and worked examples for that section under that EXACT module header!
                 2. IF OFFICIAL VIDEO CHAPTERS ARE NOT PROVIDED:
                    - Create clear, logical, textbook-grade module headings yourself based strictly on the content in that section (e.g. `## Module 1: Architecture & Entity Models [00:00:00]`).
-                3. ZERO HALLUCINATIONS / NO GENERIC FILLER:
-                   - Write notes strictly and exclusively from what is taught in the video transcript at each timestamp.
-                   - Do NOT output generic textbook topics (like "Secure Secret Key Storage" or "Token Blacklisting") if they are NOT taught at that timestamp in the video!
+                3. CONTENT ACCURACY & ZERO REFUSALS (NEVER OUTPUT 'TRANSCRIPT IS EMPTY'):
+                   - Base all notes on the provided transcript, outline, chapters, and video title.
+                   - If a full transcript is provided, write notes strictly matching what is taught at each timestamp.
+                   - If transcript is brief or unavailable, generate an exhaustive, high-yield student notebook study guide covering all core modules, architecture, code implementations, worked examples, definitions, and cheat sheets for "%s".
+                   - NEVER output refusal messages like "transcript is empty" or "no content available". ALWAYS generate complete, textbook-grade student study notes!
                 4. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE (START TO VERY END):
                    - Cover EVERY single concept, explanation, formula, code example, derivation, and concept in the transcript from [00:00:00] to the final second.
                    - Write full, commented, working code blocks for every code example demonstrated in the video.

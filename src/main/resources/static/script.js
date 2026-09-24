@@ -62,7 +62,7 @@ let lastEditedAt = null;  // ISO string — when notes were last edited
 let currentRequestId = 0;
 let activeFetchController = null;
 let selectedNoteStyle = localStorage.getItem('notes_selected_style') || 'normal';
-let selectedIncludeDiagrams = localStorage.getItem('notes_include_diagrams') !== 'false';
+let selectedIncludeDiagrams = localStorage.getItem('notes_include_diagrams') === 'true';
 let currentNoteStyle = 'normal'; // style of currently rendered notes
 
 // ----------------------------------------

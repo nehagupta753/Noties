@@ -24,8 +24,11 @@ public class GeminiService {
     private static final ObjectMapper mapper = new ObjectMapper();
 
     private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
+            .connectTimeout(Duration.ofSeconds(60))
             .build();
+
+    // Sentinel returned when the model's output was cut short by MAX_TOKENS
+    private static final String TRUNCATED_SENTINEL = "__TRUNCATED_OUTPUT__";
 
     private final List<String> apiKeys = new ArrayList<>();
 
@@ -82,7 +85,7 @@ public class GeminiService {
                 : buildCombinedNotesPrompt(videoTitle, transcript, includeDiagrams);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 8192)
+                "generationConfig", Map.of("maxOutputTokens", 65536)
         );
 
         String response = callWithRetry(body, null);
@@ -104,7 +107,7 @@ public class GeminiService {
                 : buildChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks, includeDiagrams);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 8192)
+                "generationConfig", Map.of("maxOutputTokens", 65536)
         );
         return callWithRetry(body, chunkIndex);
     }
@@ -120,7 +123,7 @@ public class GeminiService {
                 : buildMergePrompt(videoTitle, allChunkNotes, includeDiagrams);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 8192)
+                "generationConfig", Map.of("maxOutputTokens", 65536)
         );
         return callWithRetry(body, null);
     }
@@ -150,7 +153,7 @@ public class GeminiService {
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1, includeDiagrams);
                 String p1 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt1)))),
-                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                        "generationConfig", Map.of("maxOutputTokens", 65536)
                 ), null);
                 if (p1 != null && !p1.isBlank()) partsList.add(p1.trim());
             } catch (Exception e) {
@@ -165,7 +168,7 @@ public class GeminiService {
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2, includeDiagrams);
                 String p2 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt2)))),
-                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                        "generationConfig", Map.of("maxOutputTokens", 65536)
                 ), null);
                 if (p2 != null && !p2.isBlank()) partsList.add(p2.trim());
             } catch (Exception e) {
@@ -180,7 +183,7 @@ public class GeminiService {
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3, includeDiagrams);
                 String p3 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt3)))),
-                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                        "generationConfig", Map.of("maxOutputTokens", 65536)
                 ), null);
                 if (p3 != null && !p3.isBlank()) partsList.add(p3.trim());
             } catch (Exception e) {
@@ -195,7 +198,7 @@ public class GeminiService {
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4, includeDiagrams);
                 String p4 = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt4)))),
-                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                        "generationConfig", Map.of("maxOutputTokens", 65536)
                 ), null);
                 if (p4 != null && !p4.isBlank()) partsList.add(p4.trim());
             } catch (Exception e) {
@@ -211,7 +214,7 @@ public class GeminiService {
                         : buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
                 revisionNotes = callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", promptRev)))),
-                        "generationConfig", Map.of("maxOutputTokens", 8192)
+                        "generationConfig", Map.of("maxOutputTokens", 65536)
                 ), null);
             } catch (Exception e) {
                 log.warn("Metadata Revision generation warning: {}", e.getMessage());
@@ -227,7 +230,7 @@ public class GeminiService {
                     : buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords, includeDiagrams);
             Map<String, Object> body = Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                    "generationConfig", Map.of("maxOutputTokens", 8192)
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
             );
 
             String response = callWithRetry(body, null);
@@ -260,7 +263,10 @@ public class GeminiService {
     // ── HTTP Request & Retry Logic ──────────────────────────────────────
 
     // Send HTTP POST request to Google Gemini API
-    private String callGemini(Map<String, ?> requestBody, String model, String apiKey) {
+    // Internal result from a single Gemini API call, carrying both text and truncation status
+    private record GeminiResult(String text, boolean truncated) {}
+
+    private GeminiResult callGeminiRaw(Map<String, ?> requestBody, String model, String apiKey) {
         long startTime = System.currentTimeMillis();
         String maskedKey = apiKey.length() > 8 ? apiKey.substring(0, 8) + "..." : apiKey;
 
@@ -272,7 +278,7 @@ public class GeminiService {
                     .uri(URI.create(url))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .timeout(Duration.ofSeconds(120))
+                    .timeout(Duration.ofSeconds(300))
                     .build();
 
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
@@ -284,17 +290,35 @@ public class GeminiService {
             }
 
             JsonNode root = mapper.readTree(response.body());
-            JsonNode textNode = root.path("candidates").path(0).path("content").path("parts").path(0).path("text");
+            JsonNode candidate = root.path("candidates").path(0);
+            JsonNode textNode = candidate.path("content").path("parts").path(0).path("text");
             if (textNode.isMissingNode()) {
                 throw new RuntimeException("No text in Gemini response: " + response.body());
             }
-            return textNode.asText();
+
+            // Check if output was truncated due to reaching maxOutputTokens
+            String finishReason = candidate.path("finishReason").asText("");
+            boolean truncated = "MAX_TOKENS".equalsIgnoreCase(finishReason) || "LENGTH".equalsIgnoreCase(finishReason);
+            if (truncated) {
+                log.warn("Gemini {} output was TRUNCATED (finishReason={}). Will attempt continuation.", model, finishReason);
+            }
+
+            return new GeminiResult(textNode.asText(), truncated);
 
         } catch (RuntimeException re) {
             throw re;
         } catch (Exception e) {
             throw new RuntimeException("Gemini request failed: " + e.getMessage(), e);
         }
+    }
+
+    // Legacy wrapper that returns just the text (used by callWithRetry)
+    private String callGemini(Map<String, ?> requestBody, String model, String apiKey) {
+        GeminiResult result = callGeminiRaw(requestBody, model, apiKey);
+        if (result.truncated()) {
+            return result.text() + TRUNCATED_SENTINEL;
+        }
+        return result.text();
     }
 
     // Retry loop with automatic model fallback and key rotation
@@ -328,7 +352,14 @@ public class GeminiService {
                 }
                 try {
                     String activeKey = apiKeys.get(combo.keyIndex);
-                    return callGemini(requestBody, combo.model, activeKey);
+                    String result = callGemini(requestBody, combo.model, activeKey);
+
+                    // If the output was truncated, automatically continue generating
+                    if (result.endsWith(TRUNCATED_SENTINEL)) {
+                        result = handleTruncatedOutput(result, requestBody, combo.model, activeKey);
+                    }
+
+                    return result;
 
                 } catch (RuntimeException e) {
                     String msg = e.getMessage() != null ? e.getMessage() : "";
@@ -372,6 +403,66 @@ public class GeminiService {
             log.info("Retrying next cycle in {}s...", retrySecs);
             sleep(retrySecs * 1000L);
         }
+    }
+
+    /**
+     * When the model's output is truncated (MAX_TOKENS), send a continuation prompt
+     * asking it to resume from where it left off. Repeats up to MAX_CONTINUATIONS times.
+     */
+    private String handleTruncatedOutput(String truncatedResult, Map<String, ?> originalRequest, String model, String apiKey) {
+        final int MAX_CONTINUATIONS = 5;
+        StringBuilder accumulated = new StringBuilder();
+        accumulated.append(truncatedResult.replace(TRUNCATED_SENTINEL, ""));
+
+        for (int i = 0; i < MAX_CONTINUATIONS; i++) {
+            log.info("Output truncated — sending continuation request {} of {} (accumulated {} chars so far)",
+                    i + 1, MAX_CONTINUATIONS, accumulated.length());
+
+            // Get the last ~500 chars as context for seamless continuation
+            String lastChunk = accumulated.length() > 500
+                    ? accumulated.substring(accumulated.length() - 500)
+                    : accumulated.toString();
+
+            String continuationPrompt = """
+                    You were generating detailed study notes but your output was cut off mid-way.
+                    Here is where you stopped (last portion of your output):
+                    ---
+                    %s
+                    ---
+                    CONTINUE EXACTLY from where you left off. Do NOT repeat any content above.
+                    Do NOT add any introductory text like "Continuing from..." or "Here is the rest...".
+                    Just seamlessly continue the notes from the exact point they were interrupted.
+                    Cover ALL remaining topics thoroughly until completion.
+                    """.formatted(lastChunk);
+
+            Map<String, Object> contBody = Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", continuationPrompt)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            );
+
+            try {
+                String contResult = callGemini(contBody, model, apiKey);
+
+                if (contResult.endsWith(TRUNCATED_SENTINEL)) {
+                    // Still truncated — append what we got and loop
+                    accumulated.append("\n").append(contResult.replace(TRUNCATED_SENTINEL, ""));
+                    log.warn("Continuation {} was also truncated, will retry...", i + 1);
+                } else {
+                    // Complete! Append and return
+                    accumulated.append("\n").append(contResult);
+                    log.info("Continuation completed successfully after {} extra call(s). Total output: {} chars",
+                            i + 1, accumulated.length());
+                    return accumulated.toString();
+                }
+            } catch (Exception e) {
+                log.warn("Continuation {} failed: {}. Returning partial output.", i + 1, e.getMessage());
+                break;
+            }
+        }
+
+        log.warn("Reached max continuations ({}). Returning accumulated output ({} chars).",
+                MAX_CONTINUATIONS, accumulated.length());
+        return accumulated.toString();
     }
 
     // ── Helper Methods ──────────────────────────────────────────────────
@@ -550,8 +641,11 @@ public class GeminiService {
                 You are given PART %d of %d of the transcript for the video titled "%s".
                 
                 CRITICAL GUARDRAILS:
-                1. Cover EVERY concept in THIS SECTION from the first line to the very last line of this chunk. Do NOT skip details or cut off early.
-                2. Do NOT change the topic or introduce unrelated subjects.
+                1. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE: Process EVERY SINGLE LINE of the transcript chunk below. Do NOT skip, summarize, or condense ANY part of this transcript text.
+                   - This chunk is short enough for you to cover COMPLETELY. There is NO reason to skip any content.
+                   - If a line mentions a concept, definition, example, or code — it MUST appear in your notes.
+                2. Do NOT change the topic or introduce unrelated subjects. Only write about what is in the transcript.
+                3. Do NOT stop writing until you have covered the LAST LINE of this transcript chunk.
                 %s
                 
                 FORMATTING RULES:
@@ -656,10 +750,10 @@ public class GeminiService {
         String durText = (duration != null && !duration.isBlank()) ? duration : "Full Length Course";
 
         String sectionFocus = switch (partNum) {
-            case 1 -> "PART 1 OF 4: FOUNDATIONS & CORE ARCHITECTURE (Environment Setup with Node/Vite/npm, JSX Rules & Transpilation, Virtual DOM & Fiber Engine, Functional Components & Composition, Props, Component Trees, and Unidirectional Data Flow). Write thorough textbook explanations with full commented code snippets for every module.";
-            case 2 -> "PART 2 OF 4: STATE MANAGEMENT, FORMS & EFFECT HOOKS (useState Hook in-depth, Immutable state updates, Event Handling & Forms with e.preventDefault, Conditional Rendering patterns, List Rendering & Key reconciliation, and useEffect Hook lifecycle & cleanup functions). Write thorough textbook explanations with full commented code snippets for every module.";
-            case 3 -> "PART 3 OF 4: ADVANCED HOOKS, ROUTING & GLOBAL STATE (Advanced Performance Hooks: useRef for DOM & mutable refs, useMemo for memoization, useCallback for function reference stability; Building Custom Hooks; React Router DOM v6+ with Dynamic Params, Nested Routes & Protected Routes; Context API & Provider Pattern; Global State with Redux Toolkit / Zustand; and Async Data Fetching with Axios/fetch, Loading/Error States). Write thorough textbook explanations with full commented code snippets for every module.";
-            default -> "PART 4 OF 4: REAL-WORLD PROJECTS, ARCHITECTURE, OPTIMIZATION & PRODUCTION DEPLOYMENT (Scalable Project Folder Architecture, Error Boundaries, Code Splitting with React.lazy & Suspense, Re-render Prevention Strategies, Environment Variables .env, Production Build with Vite/dist, and Cloud Deployment to Vercel/Netlify/Render/AWS). Conclude with a '🎓 Master Course Summary & Final Key Takeaways' section.";
+            case 1 -> "PART 1 OF 4: FOUNDATIONS & CORE CONCEPTS — Cover the introductory concepts, environment setup, basic building blocks, fundamental principles, and core terminology of the topic described in the video title and keywords. Write thorough textbook explanations with full commented code snippets or detailed examples for every module.";
+            case 2 -> "PART 2 OF 4: INTERMEDIATE CONCEPTS & PRACTICAL APPLICATION — Cover intermediate-level techniques, essential patterns, data handling, common workflows, and hands-on practical implementations of the topic. Write thorough textbook explanations with full commented code snippets or detailed examples for every module.";
+            case 3 -> "PART 3 OF 4: ADVANCED TECHNIQUES & ARCHITECTURE — Cover advanced concepts, architectural patterns, performance considerations, integrations with other tools/libraries, and complex workflows of the topic. Write thorough textbook explanations with full commented code snippets or detailed examples for every module.";
+            default -> "PART 4 OF 4: REAL-WORLD PROJECTS, OPTIMIZATION & PRODUCTION DEPLOYMENT — Cover real-world project patterns, best practices, scalable architecture, performance optimization, testing strategies, and production deployment of the topic. Conclude with a '🎓 Master Course Summary & Final Key Takeaways' section.";
         };
 
         return """
@@ -781,7 +875,10 @@ public class GeminiService {
                 You are a dedicated student writing neat, deeply comprehensive handwritten notebook study notes for PART %d of %d of the video titled "%s".
 
                 GUIDELINES & HUMAN NOTEBOOK FORMAT:
-                1. 100%% EXHAUSTIVE COVERAGE: Explain every concept, term, formula, code pattern, and insight in THIS section thoroughly from first line to last line.
+                1. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE: Process EVERY SINGLE LINE of this transcript chunk. Do NOT skip, summarize, or condense ANY content.
+                   - This chunk is short enough for you to cover COMPLETELY. There is NO reason to skip any content.
+                   - Every concept, term, formula, code pattern, and insight MUST appear in your notes.
+                   - Do NOT stop writing until you have covered the LAST LINE of this chunk.
                 2. Notebook formatting:
                    - `#` and `##` for section titles
                    - `> 📖 **Definition: [Term]**` for key definitions
@@ -835,10 +932,10 @@ public class GeminiService {
         String durText = (duration != null && !duration.isBlank()) ? duration : "Full Length Course";
 
         String sectionFocus = switch (partNum) {
-            case 1 -> "PART 1 OF 4: FOUNDATIONS & CORE ARCHITECTURE (Environment Setup, Core Concepts, Component Architecture, Props & Composition, Data Flow).";
-            case 2 -> "PART 2 OF 4: STATE MANAGEMENT, FORMS & EFFECT HOOKS (State Management, Form Handling, Conditional & List Rendering, Lifecycle & Effects).";
-            case 3 -> "PART 3 OF 4: ADVANCED HOOKS, ROUTING & GLOBAL STATE (Performance Hooks, Custom Hooks, Routing, Context API / Global State, Async Operations).";
-            default -> "PART 4 OF 4: REAL-WORLD PROJECTS, OPTIMIZATION & PRODUCTION DEPLOYMENT (Architecture Patterns, Error Handling, Optimization, Build & Cloud Deployment). Conclude with '🎓 Final Notebook Takeaways'.";
+            case 1 -> "PART 1 OF 4: FOUNDATIONS & CORE CONCEPTS (Introduction, Environment Setup, Core Building Blocks, Fundamental Principles, Core Terminology).";
+            case 2 -> "PART 2 OF 4: INTERMEDIATE CONCEPTS & PRACTICAL APPLICATION (Intermediate Techniques, Essential Patterns, Data Handling, Common Workflows, Hands-On Implementations).";
+            case 3 -> "PART 3 OF 4: ADVANCED TECHNIQUES & ARCHITECTURE (Advanced Concepts, Architectural Patterns, Performance Considerations, Integrations, Complex Workflows).";
+            default -> "PART 4 OF 4: REAL-WORLD PROJECTS, OPTIMIZATION & DEPLOYMENT (Real-World Patterns, Best Practices, Scalable Architecture, Testing, Production Deployment). Conclude with '🎓 Final Notebook Takeaways'.";
         };
 
         return """

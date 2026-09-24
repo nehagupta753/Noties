@@ -39,7 +39,7 @@ public class NotesController {
 
     @PostMapping(value = "/generate-notes", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter generateNotes(@RequestBody Map<String, Object> body) {
-        SseEmitter emitter = new SseEmitter(10 * 60 * 1000L); // 10 minutes timeout
+        SseEmitter emitter = new SseEmitter(30 * 60 * 1000L); // 30 minutes timeout for long videos
 
         String url = body.get("url") != null ? body.get("url").toString() : null;
         if (url == null || url.isBlank()) {
@@ -91,7 +91,7 @@ public class NotesController {
                 String revisionNotes;
 
                 int CHUNK_THRESHOLD = 8_000;
-                int CHUNK_SIZE = 8_500;
+                int CHUNK_SIZE = 10_000;
 
                 if (hasTranscript && transcript != null && !transcript.isBlank()) {
                     sendProgress(emitter, isHandwritten ? "Transcript validated! Writing handwritten notebook notes..." : "Transcript validated! Generating study notes...", 25);

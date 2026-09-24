@@ -69,12 +69,20 @@ public class NotesController {
                 String author = videoData.author();
                 String duration = videoData.duration();
                 List<String> keywords = videoData.keywords();
+                List<String> chapters = videoData.chapters();
                 boolean hasTranscript = videoData.hasTranscript();
-                String transcript = videoData.transcriptText();
+                String rawTranscript = videoData.transcriptText();
                 int segmentCount = videoData.segmentCount();
 
-                log.info("[Req:{}] Video data retrieved for videoId '{}': title='{}', duration='{}', hasTranscript={}, style={}, diagrams={}",
-                        requestId, videoId, title, duration, hasTranscript, noteStyle, includeDiagrams);
+                String transcript = rawTranscript;
+                if (chapters != null && !chapters.isEmpty()) {
+                    log.info("[Req:{}] Injecting {} official video chapters into transcript context", requestId, chapters.size());
+                    String chaptersHeader = "OFFICIAL VIDEO CHAPTERS & MODULE TIMESTAMPS:\n" + String.join("\n", chapters) + "\n\n";
+                    transcript = chaptersHeader + rawTranscript;
+                }
+
+                log.info("[Req:{}] Video data retrieved for videoId '{}': title='{}', duration='{}', hasTranscript={}, chapters={}, style={}, diagrams={}",
+                        requestId, videoId, title, duration, hasTranscript, chapters != null ? chapters.size() : 0, noteStyle, includeDiagrams);
 
                 String detailedNotes;
                 String revisionNotes;

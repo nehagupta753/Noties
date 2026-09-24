@@ -601,30 +601,38 @@ public class GeminiService {
 
     private String buildDetailedNotesPrompt(String videoTitle, String transcript, boolean includeDiagrams) {
         return """
-                You are an elite professor, master educator, and textbook author creating high-yield, deeply comprehensive study notes for students.
+                You are an elite professor, master educator, and top-scoring student creating authentic, deeply comprehensive study notes for students.
                 
                 TARGET VIDEO TITLE: "%s"
                 
-                CRITICAL INSTRUCTIONS & EXHAUSTIVE COVERAGE MANDATE:
-                1. 100%% EXHAUSTIVE COVERAGE (FROM THE FIRST SECOND TO THE VERY LAST SECOND OF THE VIDEO):
+                CRITICAL MODULE & CHAPTER NAMING MANDATE:
+                1. OFFICIAL VIDEO CHAPTERS / MODULE NAMES (CRITICAL REQUIREMENT):
+                   - If official video chapters or module timestamps appear in the transcript header (e.g., [01:00:58] JWTAuthFilter to Authenticate, [01:12:57] Exception Handling with ControllerAdvice), you MUST USE THOSE EXACT MODULE NAMES as your section headings (e.g. `## Module: JWTAuthFilter to Authenticate [01:00:58]`).
+                   - Place ALL explanations, code snippets, definitions, and worked examples for that section under that EXACT module header!
+                2. IF OFFICIAL VIDEO CHAPTERS ARE NOT PROVIDED:
+                   - Create clear, logical, textbook-grade module headings yourself based strictly on the content (e.g. `## Module 1: Entity Models & Architecture [00:00:00]`).
+                3. STRICT ACCURACY & ZERO HALLUCINATION (MAN SE KUCH BHI MAT BANANA):
+                   - Write notes strictly and exclusively from what is taught in the video transcript. Do NOT invent imaginary APIs, methods, or rules not present in the video.
+                4. 100%% EXHAUSTIVE COVERAGE (FROM THE FIRST SECOND TO THE VERY LAST SECOND):
                    - Cover EVERY SINGLE concept, subtopic, definition, formula, mechanism, step-by-step procedure, code example, and takeaway present in the transcript.
-                   - Do NOT skip any section or topic. Do NOT summarize away key details, code snippets, or formulas. Write complete, textbook-grade explanations with full context and clarity.
-                   - When timestamp markers like [00:15:30] appear in the transcript, include timestamp tags `[HH:MM:SS]` or `[MM:SS]` in your section and module headers so students can correlate the notes with the exact time in the video.
-                2. TOPIC STRICTNESS: Generate notes ONLY and EXCLUSIVELY from the provided transcript for "%s". Do not change the topic or introduce unrelated material.
-                3. DETAILED FORMATTING & STRUCTURAL HIERARCHY:
+                   - Do NOT skip any section or topic. Write complete, textbook-grade explanations with full context and clarity.
+                5. AUTHENTIC STUDENT NOTEBOOK FORMATTING & HIERARCHY:
                    - `# [Master Notebook Title]`
-                   - `## [Major Module / Chapter] [Timestamp]`
+                   - `## Module: [Exact Chapter / Module Name] [Timestamp]`
                    - `### [Subtopic / Detailed Concept]`
-                   - Use bold text for key terms, definitions, and syntax.
-                   - For tutorials/programming/math: Provide FULL, working, commented code snippets or formulas with line-by-line intuition.
-                   - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
-                4. %s
-                5. NO FILLER OR META INTROS: Do NOT include phrases like "Here are your notes" or "In this video". Start directly with the main title and structured content.
+                   - Definitions in callouts: `> 📖 **Definition: [Term]**`
+                   - Exam highlights: `★ **Important:** [Crucial takeaway]`
+                   - Syntax/Formulas: `> 📐 **Formula / Syntax:**`
+                   - Worked Code Examples: Full, commented code snippets with line-by-line intuition
+                   - Pitfall warnings: `> ⚠️ **Common Mistake:**`
+                   - Key takeaways: `✅ **Key Takeaway:** ...`
+                6. %s
+                7. NO FILLER OR META INTROS: Do NOT include phrases like "Here are your notes" or "In this video". Start directly with the main title and structured content.
                 
                 ---
                 TRANSCRIPT FOR VIDEO "%s":
                 %s
-                """.formatted(videoTitle, videoTitle, getDiagramInstruction(includeDiagrams), videoTitle, transcript);
+                """.formatted(videoTitle, getDiagramInstruction(includeDiagrams), videoTitle, transcript);
     }
 
     private String buildRevisionNotesPrompt(String videoTitle, String detailedNotes, boolean includeDiagrams) {
@@ -637,8 +645,8 @@ public class GeminiService {
                 STRUCTURE:
                 # 🚀 Quick Revision & Exam Preparation Guide: %s
                 
-                ## 📚 Topic-by-Topic Fast Recap
-                - Chronological breakdown covering all major concepts from beginning to end.
+                ## 📚 Module-by-Module Fast Recap
+                - Chronological breakdown covering all major modules/chapters from beginning to end.
                 - 1-2 punchy, high-yield bullet points summarizing each takeaway.
                 
                 ## ⚡ Core Principles & Key Definitions
@@ -663,27 +671,29 @@ public class GeminiService {
     private String buildChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean includeDiagrams) {
         boolean isFinalChunk = (chunkIndex == totalChunks - 1);
         String finalInstruction = isFinalChunk ?
-                "3. CRITICAL FINAL PART REQUIREMENT: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section of the video transcript). You MUST cover all topics and code examples up to the very LAST line of the transcript. Conclude with a '🎓 Final Course Conclusion & Master Takeaways' section." : "";
+                "4. CRITICAL FINAL PART REQUIREMENT: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section of the video transcript). You MUST cover all topics and code examples up to the very LAST line of the transcript. Conclude with a '🎓 Final Course Conclusion & Master Takeaways' section." : "";
 
         return """
                 You are a master educator and textbook author creating study notes for a full-length course video.
                 You are given PART %d of %d of the transcript for the video titled "%s".
                 
-                CRITICAL GUARDRAILS:
-                1. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE FOR THIS PART:
+                CRITICAL GUARDRAILS & MODULE NAMING MANDATE:
+                1. OFFICIAL VIDEO CHAPTERS / MODULE NAMES:
+                   - If official video chapters or timestamps appear in the transcript (e.g. [01:00:58] JWTAuthFilter to Authenticate), you MUST USE THOSE EXACT MODULE NAMES as your section headings (`## Module: [Exact Chapter Name] [Timestamp]`).
+                   - Place ALL explanations, code snippets, and definitions for that section under that EXACT module header!
+                2. IF OFFICIAL VIDEO CHAPTERS ARE NOT PROVIDED:
+                   - Create clear, logical, textbook-grade module headings yourself based strictly on the content in this chunk.
+                3. STRICT ACCURACY & ZERO HALLUCINATION (MAN SE KUCH BHI MAT BANANA):
+                   - Write notes strictly and exclusively from what is taught in this transcript chunk. Do NOT invent imaginary code, APIs, or rules.
+                4. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE FOR THIS PART:
                    - Process EVERY SINGLE SECTION of this transcript chunk from start to end. Do NOT skip, summarize away, or condense ANY concept or topic in this part.
-                   - Every concept, definition, example, timestamp, and code snippet in this chunk MUST appear in your notes.
-                   - When timestamp markers like [01:15:00] appear in the transcript, include timestamp tags `[HH:MM:SS]` in your headings.
-                2. Do NOT change the topic or introduce unrelated subjects. Only write about what is in this transcript chunk.
-                3. Do NOT stop writing until you have covered the LAST line and timestamp of this transcript chunk.
                 %s
                 
                 FORMATTING RULES:
-                - `# Part %d: [Module Title covering this section]`
-                - `## [Subtopic Name] [Timestamp]`
-                - Use clear markdown headers, bold keywords, and clean bulleted explanations.
-                - For programming/math: write full, commented code blocks or formulas with line-by-line intuition.
-                - Include `✅ **Key Takeaway**` and `💡 **Pro Tip**` callouts.
+                - `# Part %d: [Course Section]`
+                - `## Module: [Exact Chapter / Module Name] [Timestamp]`
+                - `### [Subtopic Name]`
+                - Use boxed definitions `> 📖 **Definition:**`, important points `★ **Important:**`, commented code blocks, and callouts `✅ **Key Takeaway**`.
                 - %s
                 - Do not include conversational filler or meta intros.
                 

@@ -38,7 +38,7 @@ public class TranscriptService {
     // Immutable records to return transcript text and video metadata together
     public record TranscriptResult(String text, int segmentCount) {}
 
-    public record VideoMetadata(String title, String description, String author, String duration, List<String> keywords) {}
+    public record VideoMetadata(String title, String description, String author, String duration, List<String> keywords, List<String> chapters) {}
 
     public record VideoData(
             String videoId,
@@ -47,6 +47,7 @@ public class TranscriptService {
             String author,
             String duration,
             List<String> keywords,
+            List<String> chapters,
             String transcriptText,
             int segmentCount,
             boolean hasTranscript
@@ -68,6 +69,7 @@ public class TranscriptService {
                         metadata.author(),
                         metadata.duration(),
                         metadata.keywords(),
+                        metadata.chapters(),
                         result.text(),
                         result.segmentCount(),
                         true
@@ -84,6 +86,7 @@ public class TranscriptService {
                 metadata.author(),
                 metadata.duration(),
                 metadata.keywords(),
+                metadata.chapters(),
                 "",
                 0,
                 false
@@ -542,7 +545,9 @@ public class TranscriptService {
                             keywords.add(kw.asText());
                         }
                     }
-                    return new VideoMetadata(title, description, author, duration, keywords);
+                    List<String> chapters = extractVideoChapters(description, root);
+                    log.info("Extracted {} official video chapters for video {}", chapters.size(), videoId);
+                    return new VideoMetadata(title, description, author, duration, keywords, chapters);
                 }
             }
         } catch (Exception e) {
@@ -550,7 +555,53 @@ public class TranscriptService {
         }
 
         title = fetchVideoTitle(videoId);
-        return new VideoMetadata(title, description, author, duration, keywords);
+        List<String> chapters = extractVideoChapters(description, null);
+        return new VideoMetadata(title, description, author, duration, keywords, chapters);
+    }
+
+    public List<String> extractVideoChapters(String description, JsonNode root) {
+        List<String> chapters = new ArrayList<>();
+
+        // 1. Try parsing from InnerTube player response (macroMarkersListRenderer)
+        try {
+            if (root != null) {
+                JsonNode markersMap = root.at("/playerOverlays/playerOverlayRenderer/decoratedPlayerBarRenderer/decoratedPlayerBarRenderer/playerBar/multiMarkersPlayerBarRenderer/markersMap");
+                if (markersMap.isArray()) {
+                    for (JsonNode entry : markersMap) {
+                        JsonNode value = entry.path("value").path("chapters");
+                        if (value.isArray()) {
+                            for (JsonNode chapter : value) {
+                                JsonNode titleNode = chapter.path("chapterRenderer").path("title").path("runs").path(0).path("text");
+                                long startMillis = chapter.path("chapterRenderer").path("timeRangeStartMillis").asLong(0);
+                                String chapterTitle = titleNode.asText("").trim();
+                                if (!chapterTitle.isEmpty()) {
+                                    String timeStr = formatTimestampSeconds(startMillis / 1000.0);
+                                    chapters.add(timeStr + " " + chapterTitle);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse macro markers: {}", e.getMessage());
+        }
+
+        // 2. Fallback: Parse timestamps from video description text
+        if (chapters.isEmpty() && description != null && !description.isBlank()) {
+            Pattern p = Pattern.compile("(?m)(?:^|\\s)(?:\\[?(\\d{1,2}:\\d{2}(?::\\d{2})?)\\]?)\\s*[-–—:]?\\s*(.+)");
+            java.util.regex.Matcher m = p.matcher(description);
+            while (m.find()) {
+                String timestamp = m.group(1).trim();
+                String chapterTitle = m.group(2).trim();
+                chapterTitle = chapterTitle.replaceAll("\\s*[\\[\\(]\\d{1,2}:\\d{2}.*$", "").trim();
+                if (!chapterTitle.isEmpty() && chapterTitle.length() < 120) {
+                    chapters.add("[" + timestamp + "] " + chapterTitle);
+                }
+            }
+        }
+
+        return chapters;
     }
 
     // ── Extract Video ID from URL ───────────────────────────────────────

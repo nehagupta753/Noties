@@ -53,8 +53,8 @@ public class NotesController {
             return emitter;
         }
 
-        final String noteStyle = "normal";
-        final boolean isHandwritten = false;
+        final String noteStyle = "handwritten";
+        final boolean isHandwritten = true;
         final boolean includeDiagrams = false;
 
         String requestId = UUID.randomUUID().toString().substring(0, 8);

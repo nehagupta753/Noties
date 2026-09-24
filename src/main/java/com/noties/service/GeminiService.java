@@ -857,35 +857,42 @@ public class GeminiService {
 
     private String buildHandwrittenNotesPrompt(String videoTitle, String transcript, boolean includeDiagrams) {
         return """
-                You are a top-scoring student creating authentic, human-made handwritten study notes from a lecture transcript.
-                Create notes exactly like a dedicated student writes in a neat, aesthetic personal notebook.
+                You are a top-scoring, meticulous computer science student creating authentic, human-made handwritten study notes from a lecture video transcript.
+                Create notes EXACTLY like a dedicated student writes in a neat, aesthetic personal notebook.
 
                 TARGET VIDEO TITLE: "%s"
 
-                RULES & HUMAN NOTEBOOK GUIDELINES:
-                1. 100%% COMPREHENSIVE COVERAGE (FROM FIRST SECOND TO THE VERY END):
-                   - Cover EVERY single topic, explanation, formula, code example, derivation, and concept in the transcript.
-                   - Do NOT skip any topic or rush through sections. Provide thorough, complete notes.
-                2. NATURAL NOTEBOOK HIERARCHY & FLOW:
-                   - `# [Title]` for master notebook title
-                   - `## [Major Section / Lecture Topic]`
-                   - `### [Detailed Sub-Concept]`
-                3. HUMAN STUDY ANNOTATIONS & CALLOUTS:
-                   - DEFINITIONS: Format key definitions in clear boxed callouts:
+                STRICT ACCURACY & MODULE MATCHING RULES (MAN SE KUCH BHI MAT BANANA):
+                1. OFFICIAL MODULE / CHAPTER HEADINGS:
+                   - If official video chapters or timestamps appear in the transcript header (e.g. [01:10:05] Exception Handling), you MUST USE THOSE EXACT MODULE NAMES as your section headings (e.g. `## Module: Exception Handling [01:10:05]`).
+                   - Place ALL explanations, code snippets (e.g. @ExceptionHandler, handleGenericException, ResponseEntity<ApiError>, @RestControllerAdvice), definitions, and worked examples for that section under that EXACT module header!
+                2. IF OFFICIAL VIDEO CHAPTERS ARE NOT PROVIDED:
+                   - Create clear, logical, textbook-grade module headings yourself based strictly on the content in that section (e.g. `## Module 1: Architecture & Entity Models [00:00:00]`).
+                3. ZERO HALLUCINATIONS / NO GENERIC FILLER:
+                   - Write notes strictly and exclusively from what is taught in the video transcript at each timestamp.
+                   - Do NOT output generic textbook topics (like "Secure Secret Key Storage" or "Token Blacklisting") if they are NOT taught at that timestamp in the video!
+                4. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE (START TO VERY END):
+                   - Cover EVERY single concept, explanation, formula, code example, derivation, and concept in the transcript from [00:00:00] to the final second.
+                   - Write full, commented, working code blocks for every code example demonstrated in the video.
+                5. AUTHENTIC STUDENT NOTEBOOK FORMAT & ANNOTATIONS:
+                   - Master Notebook Title: `# 📓 [Video Title] — Student Study Notes`
+                   - Module Headings: `## Module: [Exact Chapter / Module Name] [Timestamp]`
+                   - Subtopics: `### [Detailed Sub-Concept]`
+                   - Boxed Definitions:
                      > 📖 **Definition: [Term]**
                      > [Clear, intuitive explanation of the concept]
-                   - MUST-KNOW EXAM HIGHLIGHTS:
+                   - Exam Highlights:
                      ★ **Important:** [Crucial exam point, key takeaway, or memory trick]
-                   - FORMULAS & SYNTAX BOXES:
+                   - Formulas & Code Syntax Boxes:
                      > 📐 **Formula / Syntax:**
                      > `[Formula or key code syntax with explanation of terms]`
-                   - PRACTICAL EXAMPLES:
-                     > 💡 **Example:** [Step-by-step worked example or practical code snippet]
-                   - PITFALLS & TRAPS:
+                   - Worked Practical Code Examples:
+                     > 💡 **Worked Example:** [Step-by-step worked example or practical code snippet with line-by-line intuition]
+                   - Pitfalls & Traps:
                      > ⚠️ **Common Mistake:** [Frequent error to avoid]
-                   - BULLET POINTS & SEQUENCES: Use `→` for step-by-step sequences and `•` for item lists.
-                4. %s
-                5. Do NOT include meta-introductory text or conversational filler. Start directly with the notebook title.
+                   - Bullet Points & Sequences: Use `→` for step-by-step sequences and `•` for item lists.
+                6. %s
+                7. Do NOT include meta-introductory text or conversational filler. Start directly with the notebook title.
 
                 ---
 
@@ -900,7 +907,7 @@ public class GeminiService {
                 - `## 📚 Key Concept Rapid Recap` (bullet points with `→`)
                 - `## ⚡ Core Rules & Definitions`
                 - `## 📝 Quick Syntax & Formula Cheat Box`
-                - `## 🧠 Fast Recall Q&A` (15-20 concise flashcard pairs `**Q:** ...` / `**A:** ...`)
+                - `## 🧠 Fast Recall Q&A` (20-25 concise flashcard pairs `**Q:** ...` / `**A:** ...`)
 
                 ---
                 TRANSCRIPT FOR VIDEO "%s":
@@ -911,32 +918,40 @@ public class GeminiService {
     private String buildHandwrittenChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean includeDiagrams) {
         boolean isFinalChunk = (chunkIndex == totalChunks - 1);
         String finalInstruction = isFinalChunk ?
-                "4. FINAL PART: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section of the video). Cover all concepts up to the very last second and conclude with '🎓 Notebook Summary & Key Takeaways'." : "";
+                "4. FINAL PART REQUIREMENT: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section of the video). Cover all concepts up to the very last second and conclude with '🎓 Notebook Summary & Key Takeaways'." : "";
 
         return """
-                You are a dedicated student writing neat, deeply comprehensive handwritten notebook study notes for PART %d of %d of the video titled "%s".
+                You are a dedicated computer science student writing neat, deeply comprehensive handwritten notebook study notes for PART %d of %d of the video titled "%s".
 
-                GUIDELINES & HUMAN NOTEBOOK FORMAT:
-                1. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE: Process EVERY SINGLE LINE of this transcript chunk. Do NOT skip, summarize, or condense ANY content.
-                   - This chunk is short enough for you to cover COMPLETELY. There is NO reason to skip any content.
-                   - Every concept, term, formula, code pattern, and insight MUST appear in your notes.
-                   - Do NOT stop writing until you have covered the LAST LINE of this chunk.
-                2. Notebook formatting:
-                   - `#` and `##` for section titles
+                STRICT ACCURACY & MODULE MATCHING RULES (MAN SE KUCH BHI MAT BANANA):
+                1. OFFICIAL MODULE / CHAPTER HEADINGS:
+                   - If official video chapters or timestamps appear in this transcript chunk (e.g. [01:10:05] Exception Handling), you MUST USE THOSE EXACT MODULE NAMES as your section headings (e.g. `## Module: Exception Handling [01:10:05]`).
+                   - Place ALL explanations, code snippets, definitions, and worked examples for that timestamp under that EXACT module header!
+                2. IF OFFICIAL VIDEO CHAPTERS ARE NOT PROVIDED:
+                   - Create clear, logical, textbook-grade module headings yourself based strictly on the content in this chunk.
+                3. ZERO HALLUCINATIONS / NO GENERIC FILLER:
+                   - Write notes strictly and exclusively from what is taught in this transcript chunk. Do NOT invent generic filler topics not in the video.
+                4. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE FOR THIS PART:
+                   - Process EVERY SINGLE LINE of this transcript chunk. Do NOT skip, summarize, or condense ANY content.
+                   - Include full, commented code snippets for code demonstrated in the video.
+                5. AUTHENTIC NOTEBOOK FORMATTING:
+                   - `# Part %d: [Course Section]`
+                   - `## Module: [Exact Chapter / Module Name] [Timestamp]`
+                   - `### [Subtopic Name]`
                    - `> 📖 **Definition: [Term]**` for key definitions
                    - `★ **Important:** [Key concept / exam takeaway]` for critical points
                    - `→` for sequential steps and bullet points
                    - `> 📐 **Formula / Syntax:**` with formulas and code syntax
-                   - `> 💡 **Example:**` for concrete worked examples
+                   - `> 💡 **Worked Example:**` for concrete worked examples
                    - `> ⚠️ **Common Mistake:**` for errors to watch out for
-                3. %s
+                6. %s
                 %s
-                4. No fluff or conversational intro. Start directly with the section content.
+                7. No fluff or conversational intro. Start directly with the section content.
 
                 ---
-                Transcript Chunk %d of %d for "%s":
+                Transcript Chunk Part %d of %d for "%s":
                 %s
-                """.formatted(chunkIndex + 1, totalChunks, videoTitle, getDiagramInstruction(includeDiagrams), finalInstruction, chunkIndex + 1, totalChunks, videoTitle, chunk);
+                """.formatted(chunkIndex + 1, totalChunks, videoTitle, chunkIndex + 1, getDiagramInstruction(includeDiagrams), finalInstruction, chunkIndex + 1, totalChunks, videoTitle, chunk);
     }
 
     private String buildHandwrittenMergePrompt(String videoTitle, List<String> allChunkNotes, boolean includeDiagrams) {

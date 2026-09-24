@@ -58,7 +58,7 @@ let generatedAt = null;   // ISO string — when notes were generated
 let lastEditedAt = null;  // ISO string — when notes were last edited
 let currentRequestId = 0;
 let activeFetchController = null;
-let currentNoteStyle = 'normal'; // always normal style
+let currentNoteStyle = 'handwritten'; // default handwritten student notebook mode
 
 // ----------------------------------------
 //  Timestamp Helpers
@@ -982,7 +982,7 @@ async function generateNotes() {
   currentVideoTitle = '';
   rawNotesMarkdown = '';
   rawRevisionMarkdown = '';
-  currentNoteStyle = 'normal';
+  currentNoteStyle = 'handwritten';
   generatedAt = null;
   lastEditedAt = null;
   if (notesContent) notesContent.innerHTML = '';

@@ -1086,7 +1086,7 @@ async function generateNotes() {
           rawRevisionMarkdown = event.revision;
           currentVideoTitle = event.videoTitle || 'YouTube Video';
           currentVideoId = event.videoId || currentVideoId;
-          currentNoteStyle = event.noteStyle || selectedNoteStyle || 'normal';
+          currentNoteStyle = event.noteStyle || 'normal';
           generatedAt = new Date().toISOString();
           lastEditedAt = null;
 
@@ -1112,7 +1112,7 @@ async function generateNotes() {
             notes: rawNotesMarkdown,
             revision: rawRevisionMarkdown,
             noteStyle: currentNoteStyle,
-            includeDiagrams: selectedIncludeDiagrams,
+            includeDiagrams: false,
             transcriptLength: event.transcriptLength,
             date: dateStr,
             generatedAt,
@@ -1975,8 +1975,6 @@ requestAnimationFrame(updatePandaPosition);
 // ----------------------------------------
 
 window.addEventListener('load', () => {
-  setNoteStyle(selectedNoteStyle);
-  setIncludeDiagrams(selectedIncludeDiagrams);
   renderHistoryList();
   setTimeout(() => urlInput.focus(), 300);
 });

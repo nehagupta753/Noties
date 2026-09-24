@@ -75,10 +75,14 @@ public class NotesController {
                 int segmentCount = videoData.segmentCount();
 
                 String transcript = rawTranscript;
-                if (chapters != null && !chapters.isEmpty()) {
-                    log.info("[Req:{}] Injecting {} official video chapters into transcript context", requestId, chapters.size());
-                    String chaptersHeader = "OFFICIAL VIDEO CHAPTERS & MODULE TIMESTAMPS:\n" + String.join("\n", chapters) + "\n\n";
-                    transcript = chaptersHeader + rawTranscript;
+                if (hasTranscript && rawTranscript != null && !rawTranscript.isBlank()) {
+                    if (chapters != null && !chapters.isEmpty()) {
+                        log.info("[Req:{}] Injecting {} official video chapters into transcript context", requestId, chapters.size());
+                        String chaptersHeader = "OFFICIAL VIDEO CHAPTERS & MODULE TIMESTAMPS:\n" + String.join("\n", chapters) + "\n\n";
+                        transcript = chaptersHeader + rawTranscript;
+                    }
+                } else if (chapters != null && !chapters.isEmpty()) {
+                    description = (description != null ? description : "") + "\n\nOFFICIAL VIDEO CHAPTERS & MODULE TIMESTAMPS:\n" + String.join("\n", chapters);
                 }
 
                 log.info("[Req:{}] Video data retrieved for videoId '{}': title='{}', duration='{}', hasTranscript={}, chapters={}, style={}, diagrams={}",
@@ -151,7 +155,7 @@ public class NotesController {
                 emitter.complete();
 
             } catch (Exception e) {
-                log.error("[Req:{}] Note generation error for videoId '{}': {}", requestId, videoId, e.getMessage());
+                log.error("[Req:{}] Note generation error for videoId '{}': {}", requestId, videoId, e.getMessage(), e);
                 String msg = e.getMessage() != null ? e.getMessage() : "";
 
                 String errorMsg = "Something went wrong while generating notes. Please try again.";
@@ -161,6 +165,8 @@ public class NotesController {
                     errorMsg = "Gemini servers are busy right now. Please try again in a moment.";
                 } else if (msg.matches("(?i).*(quota|rate|limit|429).*")) {
                     errorMsg = "API rate limit reached. Please wait a moment or add another key.";
+                } else if (!msg.isBlank()) {
+                    errorMsg = msg;
                 }
 
                 sendError(emitter, errorMsg);

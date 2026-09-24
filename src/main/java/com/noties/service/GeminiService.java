@@ -34,11 +34,10 @@ public class GeminiService {
 
     // Working models in priority order
     private static final List<String> MODEL_CHAIN = List.of(
-            "gemini-2.5-flash",
             "gemini-2.0-flash",
             "gemini-1.5-flash",
-            "gemini-1.5-pro",
-            "gemini-2.5-pro"
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-pro"
     );
 
     // Track permanently unavailable models and rate-limited key pairs

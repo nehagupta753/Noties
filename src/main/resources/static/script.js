@@ -28,10 +28,7 @@ const notesTimestampEl = $('#notes-timestamp');
 const timestampGenerated = $('#timestamp-generated');
 const timestampEdited = $('#timestamp-edited');
 
-// Note Style & Diagram Options
-const styleNormalBtn = $('#style-normal-btn');
-const styleHandwrittenBtn = $('#style-handwritten-btn');
-const includeDiagramsChk = $('#include-diagrams-chk');
+
 
 // Tab Elements
 const tabDetailed = $('#tab-detailed');
@@ -61,9 +58,7 @@ let generatedAt = null;   // ISO string — when notes were generated
 let lastEditedAt = null;  // ISO string — when notes were last edited
 let currentRequestId = 0;
 let activeFetchController = null;
-let selectedNoteStyle = localStorage.getItem('notes_selected_style') || 'normal';
-let selectedIncludeDiagrams = localStorage.getItem('notes_include_diagrams') === 'true';
-let currentNoteStyle = 'normal'; // style of currently rendered notes
+let currentNoteStyle = 'normal'; // always normal style
 
 // ----------------------------------------
 //  Timestamp Helpers
@@ -943,52 +938,7 @@ closeSidebarBtn.addEventListener('click', () => toggleHistorySidebar(false));
 historyOverlay.addEventListener('click', () => toggleHistorySidebar(false));
 clearHistoryBtn.addEventListener('click', clearAllHistory);
 
-// ----------------------------------------
-//  Note Style & Diagram Selector Controls
-// ----------------------------------------
 
-function setNoteStyle(style) {
-  selectedNoteStyle = style === 'handwritten' ? 'handwritten' : 'normal';
-  localStorage.setItem('notes_selected_style', selectedNoteStyle);
-  
-  if (styleNormalBtn && styleHandwrittenBtn) {
-    if (selectedNoteStyle === 'handwritten') {
-      styleHandwrittenBtn.classList.add('active');
-      styleNormalBtn.classList.remove('active');
-    } else {
-      styleNormalBtn.classList.add('active');
-      styleHandwrittenBtn.classList.remove('active');
-    }
-  }
-}
-
-function setIncludeDiagrams(include) {
-  selectedIncludeDiagrams = !!include;
-  localStorage.setItem('notes_include_diagrams', selectedIncludeDiagrams ? 'true' : 'false');
-  if (includeDiagramsChk) {
-    includeDiagramsChk.checked = selectedIncludeDiagrams;
-  }
-}
-
-if (styleNormalBtn) {
-  styleNormalBtn.addEventListener('click', () => {
-    setNoteStyle('normal');
-    triggerPandaBubble('Switched to Normal notes style! 📚');
-  });
-}
-
-if (styleHandwrittenBtn) {
-  styleHandwrittenBtn.addEventListener('click', () => {
-    setNoteStyle('handwritten');
-    triggerPandaBubble('Handwritten student notes mode active! ✍️🌸');
-  });
-}
-
-if (includeDiagramsChk) {
-  includeDiagramsChk.addEventListener('change', (e) => {
-    setIncludeDiagrams(e.target.checked);
-  });
-}
 
 // ----------------------------------------
 //  Generate Notes
@@ -1029,7 +979,7 @@ async function generateNotes() {
   currentVideoTitle = '';
   rawNotesMarkdown = '';
   rawRevisionMarkdown = '';
-  currentNoteStyle = selectedNoteStyle;
+  currentNoteStyle = 'normal';
   generatedAt = null;
   lastEditedAt = null;
   if (notesContent) notesContent.innerHTML = '';
@@ -1043,11 +993,11 @@ async function generateNotes() {
   const progressText = document.getElementById('progress-text');
   const loadingTitle = document.getElementById('loading-title');
 
-  if (loadingTitle) loadingTitle.textContent = selectedNoteStyle === 'handwritten' ? 'Writing Handwritten Notes' : 'Generating Your Notes';
+  if (loadingTitle) loadingTitle.textContent = 'Generating Your Notes';
   if (progressContainer) progressContainer.style.display = 'block';
   if (progressFill) progressFill.style.width = '5%';
   if (progressText) progressText.textContent = 'Connecting...';
-  triggerPandaBubble(selectedNoteStyle === 'handwritten' ? 'Writing neat notebook study notes... ✍️🌸' : 'Writing notes and revision sheets... 📝');
+  triggerPandaBubble('Writing notes and revision sheets... 📝');
 
   const endpoint = '/api/generate-notes';
 
@@ -1055,11 +1005,7 @@ async function generateNotes() {
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url,
-        noteStyle: selectedNoteStyle,
-        includeDiagrams: selectedIncludeDiagrams
-      }),
+      body: JSON.stringify({ url }),
       signal: activeFetchController.signal,
     });
 
@@ -1251,10 +1197,7 @@ copyBtn.addEventListener('click', async () => {
 });
 
 downloadBtn.addEventListener('click', () => {
-  const isHandwritten = currentNoteStyle === 'handwritten';
-  const title = activeTab === 'detailed'
-    ? (isHandwritten ? '✍️ Handwritten Detailed Study Notes' : '📚 Detailed Study Notes')
-    : (isHandwritten ? '✍️ Handwritten Quick Revision Notes' : '⚡ Quick Revision Notes');
+  const title = activeTab === 'detailed' ? '📚 Detailed Study Notes' : '⚡ Quick Revision Notes';
   const subtitle = currentVideoTitle || 'YouTube Video';
 
   // Build timestamp line for PDF header
@@ -1268,10 +1211,10 @@ downloadBtn.addEventListener('click', () => {
 
   // Create a temporary container for PDF rendering
   const pdfContainer = document.createElement('div');
-  pdfContainer.style.fontFamily = isHandwritten ? "'Kalam', 'Segoe UI', cursive, sans-serif" : "'Segoe UI', 'Inter', sans-serif";
-  pdfContainer.style.color = isHandwritten ? '#1a2f4c' : '#2d2d2d';
-  pdfContainer.style.lineHeight = isHandwritten ? '1.8' : '1.75';
-  pdfContainer.style.fontSize = isHandwritten ? '15px' : '14px';
+  pdfContainer.style.fontFamily = "'Segoe UI', 'Inter', sans-serif";
+  pdfContainer.style.color = '#2d2d2d';
+  pdfContainer.style.lineHeight = '1.75';
+  pdfContainer.style.fontSize = '14px';
   pdfContainer.style.padding = '20px';
   pdfContainer.style.background = '#ffffff';
   pdfContainer.style.width = '794px'; // standard A4 pixel width at 96 DPI
@@ -1279,14 +1222,10 @@ downloadBtn.addEventListener('click', () => {
   pdfContainer.style.left = '-9999px';
   pdfContainer.style.top = '0';
 
-  if (isHandwritten) {
-    pdfContainer.classList.add('handwritten-mode');
-  }
-
   // Header
   pdfContainer.innerHTML = `
     <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #ffccd5;">
-      <h1 style="font-size: 22px; color: ${isHandwritten ? '#1a365d' : '#e0457b'}; margin: 0 0 4px; border: none; padding: 0; font-family: ${isHandwritten ? "'Kalam', cursive" : "inherit"};">${title}</h1>
+      <h1 style="font-size: 22px; color: #e0457b; margin: 0 0 4px; border: none; padding: 0;">${title}</h1>
       <p style="color: #8c6a71; font-size: 13px; margin: 0 0 4px;">${subtitle}</p>
       ${timestampLine ? `<p style="color: #a88a91; font-size: 11px; margin: 0;">🕐 ${timestampLine}</p>` : ''}
     </div>
@@ -1296,7 +1235,7 @@ downloadBtn.addEventListener('click', () => {
   // Clean filename
   const safeTitle = subtitle.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '_').substring(0, 50);
   const dateStr = new Date().toISOString().split('T')[0];
-  const filename = `Noties_${isHandwritten ? 'Handwritten_' : ''}${safeTitle || 'Notes'}_${dateStr}.pdf`;
+  const filename = `Noties_${safeTitle || 'Notes'}_${dateStr}.pdf`;
 
   // Disable edit mode visually in the clone
   const editableDivs = pdfContainer.querySelectorAll('[contenteditable]');

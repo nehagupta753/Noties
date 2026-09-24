@@ -53,20 +53,9 @@ public class NotesController {
             return emitter;
         }
 
-        String rawStyle = body.get("noteStyle") != null ? body.get("noteStyle").toString() : (body.get("style") != null ? body.get("style").toString() : "normal");
-        final String noteStyle = "handwritten".equalsIgnoreCase(rawStyle) ? "handwritten" : "normal";
-        final boolean isHandwritten = "handwritten".equals(noteStyle);
-
-        boolean incDiagrams = false;
-        if (body.get("includeDiagrams") != null) {
-            Object dVal = body.get("includeDiagrams");
-            if (dVal instanceof Boolean b) {
-                incDiagrams = b;
-            } else {
-                incDiagrams = Boolean.parseBoolean(dVal.toString());
-            }
-        }
-        final boolean includeDiagrams = incDiagrams;
+        final String noteStyle = "normal";
+        final boolean isHandwritten = false;
+        final boolean includeDiagrams = false;
 
         String requestId = UUID.randomUUID().toString().substring(0, 8);
 

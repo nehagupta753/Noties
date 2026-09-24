@@ -103,10 +103,14 @@ public class TranscriptService {
             try {
                 transcript = transcriptList.findTranscript("en");
             } catch (Exception e) {
-                // Fallback to first available language if English is not found
-                var iterator = transcriptList.iterator();
-                if (iterator.hasNext()) {
-                    transcript = iterator.next();
+                try {
+                    transcript = transcriptList.findGeneratedTranscript("en");
+                } catch (Exception e2) {
+                    // Fallback to first available language if English is not found
+                    var iterator = transcriptList.iterator();
+                    if (iterator.hasNext()) {
+                        transcript = iterator.next();
+                    }
                 }
             }
 
@@ -118,11 +122,19 @@ public class TranscriptService {
             var fragments = content.getContent();
             int segmentCount = fragments.size();
 
-            // Format fragments cleanly
+            // Format fragments cleanly with timestamp anchors every ~30s
             StringBuilder sb = new StringBuilder();
+            double lastTimestampSec = -60;
             for (var frag : fragments) {
                 String text = frag.getText().replace("\n", " ").trim();
                 if (!text.isEmpty()) {
+                    try {
+                        double start = frag.getStart();
+                        if (start - lastTimestampSec >= 30 || lastTimestampSec < 0) {
+                            sb.append(formatTimestampSeconds(start)).append(" ");
+                            lastTimestampSec = start;
+                        }
+                    } catch (Exception ignored) {}
                     sb.append(text).append("\n");
                 }
             }
@@ -324,13 +336,26 @@ public class TranscriptService {
         return fetchAndParseCaptionXml(captionUrl);
     }
 
+    public static String formatTimestampSeconds(double seconds) {
+        long s = (long) seconds;
+        long hrs = s / 3600;
+        long mins = (s % 3600) / 60;
+        long secs = s % 60;
+        if (hrs > 0) {
+            return String.format("[%02d:%02d:%02d]", hrs, mins, secs);
+        } else {
+            return String.format("[%02d:%02d]", mins, secs);
+        }
+    }
+
     // ── Shared: Fetch and parse caption XML ────────────────────────────
 
     private TranscriptResult fetchAndParseCaptionXml(String captionUrl) throws Exception {
         StringBuilder sb = new StringBuilder();
         int totalSegments = 0;
         double lastStartSeconds = 0;
-        int maxPages = 15; // Support up to 15 pages for multi-hour videos
+        double lastTimestampSec = -60;
+        int maxPages = 500; // Support up to 500 pages for multi-hour (10+ hour) videos
 
         for (int page = 0; page < maxPages; page++) {
             String currentUrl = captionUrl;
@@ -343,7 +368,7 @@ public class TranscriptService {
                     .uri(URI.create(currentUrl))
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
                     .header("Accept-Language", "en-US,en;q=0.9")
-                    .timeout(Duration.ofSeconds(15))
+                    .timeout(Duration.ofSeconds(20))
                     .GET()
                     .build();
 
@@ -361,6 +386,11 @@ public class TranscriptService {
                 String text = decodeHtmlEntities(matcher.group(2)).replaceAll("<[^>]+>", "").replace("\n", " ").trim();
                 if (text.isEmpty()) continue;
 
+                if (start - lastTimestampSec >= 30 || lastTimestampSec < 0) {
+                    sb.append(formatTimestampSeconds(start)).append(" ");
+                    lastTimestampSec = start;
+                }
+
                 sb.append(text).append("\n");
                 pageSegments++;
                 totalSegments++;
@@ -376,6 +406,11 @@ public class TranscriptService {
                     String text = decodeHtmlEntities(pMatcher.group(2)).replaceAll("<[^>]+>", "").replace("\n", " ").trim();
                     if (text.isEmpty()) continue;
 
+                    if (start - lastTimestampSec >= 30 || lastTimestampSec < 0) {
+                        sb.append(formatTimestampSeconds(start)).append(" ");
+                        lastTimestampSec = start;
+                    }
+
                     sb.append(text).append("\n");
                     pageSegments++;
                     totalSegments++;
@@ -383,7 +418,7 @@ public class TranscriptService {
                 }
             }
 
-            if (pageSegments < 50 || pageMaxStart <= lastStartSeconds) {
+            if (pageSegments == 0 || pageMaxStart <= lastStartSeconds) {
                 break;
             }
 

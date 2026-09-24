@@ -433,6 +433,9 @@ function markdownToHtml(md, isHandwritten = false) {
   // Horizontal rules
   html = html.replace(/^---$/gm, '<hr>');
 
+  // Timestamp Badges: [01:23:45] or [12:34]
+  html = html.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g, '<span class="timestamp-badge">⏱️ $1</span>');
+
   // Bold + Italic
   html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');

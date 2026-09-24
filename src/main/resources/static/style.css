@@ -1201,6 +1201,22 @@ body {
   gap: 5px;
 }
 
+.timestamp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff0f3;
+  color: #ff3b6f;
+  border: 1.5px solid var(--accent-pink-light);
+  border-radius: 100px;
+  padding: 2px 8px;
+  font-size: 0.82em;
+  font-weight: 700;
+  margin-left: 6px;
+  vertical-align: middle;
+  box-shadow: 0 1px 3px rgba(255, 92, 138, 0.15);
+}
+
 .timestamp-edited {
   color: var(--accent-pink-dark);
   font-weight: 600;

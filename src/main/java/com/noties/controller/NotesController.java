@@ -79,8 +79,8 @@ public class NotesController {
                 String detailedNotes;
                 String revisionNotes;
 
-                int CHUNK_THRESHOLD = 8_000;
-                int CHUNK_SIZE = 10_000;
+                int CHUNK_THRESHOLD = 45_000;
+                int CHUNK_SIZE = 40_000;
 
                 if (hasTranscript && transcript != null && !transcript.isBlank()) {
                     sendProgress(emitter, isHandwritten ? "Transcript validated! Writing handwritten notebook notes..." : "Transcript validated! Generating study notes...", 25);
@@ -89,21 +89,21 @@ public class NotesController {
                             requestId, transcript.length(), segmentCount, preview);
 
                     if (transcript.length() < CHUNK_THRESHOLD) {
-                        var notes = gemini.generateNotes(title, transcript, isHandwritten, includeDiagrams);
+                        var notes = gemini.generateNotes(title, transcript, isHandwritten, includeDiagrams, (msg, prog) -> sendProgress(emitter, msg, prog));
                         detailedNotes = notes.getOrDefault("detailed", "");
                         revisionNotes = notes.getOrDefault("revision", "");
                     } else {
                         List<String> chunks = transcripts.splitTranscriptIntoChunks(transcript, CHUNK_SIZE);
                         log.info("[Req:{}] Long video detected ({} chars): processing {} parts sequentially",
                                 requestId, transcript.length(), chunks.size());
-                        sendProgress(emitter, "Full course video detected! Processing all " + chunks.size() + " course parts from start to finish...", 25);
+                        sendProgress(emitter, "Full course video detected (" + chunks.size() + " parts)! Analyzing and generating notes from start to finish...", 25);
 
                         List<String> chunkResults = new ArrayList<>();
                         for (int i = 0; i < chunks.size(); i++) {
                             int idx = i;
                             String chunk = chunks.get(i);
                             int progress = 25 + Math.round(((float) (idx + 1) / chunks.size()) * 60);
-                            sendProgress(emitter, (isHandwritten ? "Writing handwritten notes for Part " : "Generating detailed notes for Part ") + (idx + 1) + " of " + chunks.size() + "...", progress);
+                            sendProgress(emitter, (isHandwritten ? "Writing handwritten notes for Part " : "Analyzing & writing notes for Part ") + (idx + 1) + " of " + chunks.size() + "...", progress);
 
                             String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size(), isHandwritten, includeDiagrams);
                             if (chunkNotes != null && !chunkNotes.isBlank()) {
@@ -113,7 +113,7 @@ public class NotesController {
 
                         detailedNotes = String.join("\n\n---\n\n", chunkResults);
 
-                        sendProgress(emitter, "Creating comprehensive Quick Revision Sheet for all " + chunks.size() + " parts...", 90);
+                        sendProgress(emitter, "Creating comprehensive Quick Revision Sheet & Flashcards for all " + chunks.size() + " parts...", 90);
                         revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults, isHandwritten, includeDiagrams);
                     }
                 } else {

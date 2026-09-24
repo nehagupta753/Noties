@@ -34,11 +34,10 @@ public class GeminiService {
 
     // Working models in priority order
     private static final List<String> MODEL_CHAIN = List.of(
-            "gemini-3.5-flash-lite",
-            "gemini-3.5-flash",
-            "gemini-3.6-flash",
-            "gemini-3.7-flash",
             "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
             "gemini-2.5-pro"
     );
 
@@ -74,26 +73,37 @@ public class GeminiService {
 
     // ── Public API Methods ──────────────────────────────────────────────
 
-    // Generate detailed notes and revision sheet for a short video (backwards compatible)
+    // Generate detailed notes and revision sheet for a short/medium video
     public Map<String, String> generateNotes(String videoTitle, String transcript) {
-        return generateNotes(videoTitle, transcript, false, false);
+        return generateNotes(videoTitle, transcript, false, false, null);
     }
 
     public Map<String, String> generateNotes(String videoTitle, String transcript, boolean isHandwritten, boolean includeDiagrams) {
-        String prompt = isHandwritten
-                ? buildHandwrittenNotesPrompt(videoTitle, transcript, includeDiagrams)
-                : buildCombinedNotesPrompt(videoTitle, transcript, includeDiagrams);
-        Map<String, Object> body = Map.of(
-                "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
+        return generateNotes(videoTitle, transcript, isHandwritten, includeDiagrams, null);
+    }
+
+    public Map<String, String> generateNotes(String videoTitle, String transcript, boolean isHandwritten, boolean includeDiagrams, ProgressListener listener) {
+        if (listener != null) listener.onProgress("Generating comprehensive detailed study notes...", 30);
+
+        // Step 1: Dedicated call for exhaustive detailed study notes
+        String detailedPrompt = buildDetailedNotesPrompt(videoTitle, transcript, includeDiagrams);
+        Map<String, Object> bodyDetailed = Map.of(
+                "contents", List.of(Map.of("parts", List.of(Map.of("text", detailedPrompt)))),
                 "generationConfig", Map.of("maxOutputTokens", 65536)
         );
+        String detailedNotes = callWithRetry(bodyDetailed, null);
 
-        String response = callWithRetry(body, null);
-        String[] parts = response.split("===REVISION_NOTES===");
-        String detailed = parts[0].trim();
-        String revision = parts.length > 1 ? parts[1].trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
+        if (listener != null) listener.onProgress("Creating Quick Revision Sheet & Flashcards...", 75);
 
-        return Map.of("detailed", detailed, "revision", revision);
+        // Step 2: Dedicated call for Quick Revision Sheet & Flashcard Recall Q&A
+        String revisionPrompt = buildRevisionNotesPrompt(videoTitle, detailedNotes, includeDiagrams);
+        Map<String, Object> bodyRevision = Map.of(
+                "contents", List.of(Map.of("parts", List.of(Map.of("text", revisionPrompt)))),
+                "generationConfig", Map.of("maxOutputTokens", 65536)
+        );
+        String revisionNotes = callWithRetry(bodyRevision, null);
+
+        return Map.of("detailed", detailedNotes.trim(), "revision", revisionNotes.trim());
     }
 
     // Generate notes for a single chunk of a long video (backwards compatible)
@@ -589,41 +599,27 @@ public class GeminiService {
 
     // ── Prompts matching original Node.js ──────────────────────────────
 
-    private String buildCombinedNotesPrompt(String videoTitle, String transcript, boolean includeDiagrams) {
+    private String buildDetailedNotesPrompt(String videoTitle, String transcript, boolean includeDiagrams) {
         return """
-                You are a master educator and textbook author creating high-yield, aesthetic study notes for students.
+                You are an elite professor, master educator, and textbook author creating high-yield, deeply comprehensive study notes for students.
                 
                 TARGET VIDEO TITLE: "%s"
                 
-                CRITICAL INSTRUCTIONS & ACCURACY GUARDRAILS:
-                1. TOPIC & CONTENT STRICTNESS: Generate notes ONLY and EXCLUSIVELY from the provided transcript below for the video titled "%s".
-                2. NO TOPIC SWITCHING: Do NOT change the subject, do NOT invent another topic, and do NOT reuse knowledge from other videos.
-                3. FULL CHRONOLOGICAL COVERAGE (FROM START TO VERY END):
-                   - Cover every concept, formula, mechanism, code snippet, definition, and insight from start to the VERY LAST SECOND of the transcript.
-                   - Do NOT cut off early, do NOT stop midway, and do NOT skip ending topics or conclusions.
-                4. RICH FORMATTING & HIERARCHY:
-                   - Use clean markdown `#`, `##`, `###` headers for logical module separation.
-                   - Use bold text for key terms, definitions, and important syntax.
-                   - Use bullet points and numbered lists for readability.
-                   - For tutorials/technical topics: Provide clean, commented, fully explained code blocks or command sequences.
+                CRITICAL INSTRUCTIONS & EXHAUSTIVE COVERAGE MANDATE:
+                1. 100%% EXHAUSTIVE COVERAGE (FROM THE FIRST SECOND TO THE VERY LAST SECOND OF THE VIDEO):
+                   - Cover EVERY SINGLE concept, subtopic, definition, formula, mechanism, step-by-step procedure, code example, and takeaway present in the transcript.
+                   - Do NOT skip any section or topic. Do NOT summarize away key details, code snippets, or formulas. Write complete, textbook-grade explanations with full context and clarity.
+                   - When timestamp markers like [00:15:30] appear in the transcript, include timestamp tags `[HH:MM:SS]` or `[MM:SS]` in your section and module headers so students can correlate the notes with the exact time in the video.
+                2. TOPIC STRICTNESS: Generate notes ONLY and EXCLUSIVELY from the provided transcript for "%s". Do not change the topic or introduce unrelated material.
+                3. DETAILED FORMATTING & STRUCTURAL HIERARCHY:
+                   - `# [Master Notebook Title]`
+                   - `## [Major Module / Chapter] [Timestamp]`
+                   - `### [Subtopic / Detailed Concept]`
+                   - Use bold text for key terms, definitions, and syntax.
+                   - For tutorials/programming/math: Provide FULL, working, commented code snippets or formulas with line-by-line intuition.
                    - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
-                5. %s
-                6. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the main title and structured content.
-                
-                ---
-                
-                **PART 1: Detailed Study Notes**
-                Write a complete, beautifully structured, thorough textbook-grade reference guide based ONLY on the transcript from start to the very end of the video.
-                
-                Then write EXACTLY this separator line on its own line:
-                ===REVISION_NOTES===
-                
-                **PART 2: Quick Revision & Exam Cheat Sheet**
-                Create an exhaustive, high-yield summary designed for rapid review based ONLY on the transcript:
-                - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept in chronological order.
-                - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions from this transcript.
-                - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas from this transcript.
-                - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`) based on this transcript.
+                4. %s
+                5. NO FILLER OR META INTROS: Do NOT include phrases like "Here are your notes" or "In this video". Start directly with the main title and structured content.
                 
                 ---
                 TRANSCRIPT FOR VIDEO "%s":
@@ -631,34 +627,70 @@ public class GeminiService {
                 """.formatted(videoTitle, videoTitle, getDiagramInstruction(includeDiagrams), videoTitle, transcript);
     }
 
+    private String buildRevisionNotesPrompt(String videoTitle, String detailedNotes, boolean includeDiagrams) {
+        return """
+                You are a master educator and exam preparation specialist.
+                Below are the detailed study notes for the video titled "%s".
+                
+                Create an EXHAUSTIVE, BEAUTIFULLY STRUCTURED Quick Revision Sheet covering ALL concepts from start to finish across the entire video.
+                
+                STRUCTURE:
+                # 🚀 Quick Revision & Exam Preparation Guide: %s
+                
+                ## 📚 Topic-by-Topic Fast Recap
+                - Chronological breakdown covering all major concepts from beginning to end.
+                - 1-2 punchy, high-yield bullet points summarizing each takeaway.
+                
+                ## ⚡ Core Principles & Key Definitions
+                - Bulleted list of every crucial term, definition, law, theorem, or pattern introduced.
+                
+                ## 📝 Syntax, Commands & Formulas Cheat Sheet
+                - Clean code syntax tables, command cheat sheets, or key formulas for quick reference.
+                
+                %s
+                
+                ## 🧠 Flashcard Recall Q&A
+                - Minimum 20-25 rapid-fire flashcards covering all video sections formatted as:
+                  - **Q:** [Question]
+                    **A:** [Direct, accurate answer]
+                
+                ---
+                DETAILED STUDY NOTES FOR "%s":
+                %s
+                """.formatted(videoTitle, videoTitle, getDiagramInstruction(includeDiagrams), videoTitle, detailedNotes);
+    }
+
     private String buildChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean includeDiagrams) {
         boolean isFinalChunk = (chunkIndex == totalChunks - 1);
         String finalInstruction = isFinalChunk ?
-                "3. CRITICAL FINAL PART REQUIREMENT: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section of the video transcript). You MUST cover all topics and code examples up to the very LAST line of the transcript. Conclude Part 1 with a '🎓 Final Course Conclusion & Master Takeaways' section." : "";
+                "3. CRITICAL FINAL PART REQUIREMENT: This is Part " + (chunkIndex + 1) + " of " + totalChunks + " (the FINAL section of the video transcript). You MUST cover all topics and code examples up to the very LAST line of the transcript. Conclude with a '🎓 Final Course Conclusion & Master Takeaways' section." : "";
 
         return """
-                You are a master educator and textbook author.
+                You are a master educator and textbook author creating study notes for a full-length course video.
                 You are given PART %d of %d of the transcript for the video titled "%s".
                 
                 CRITICAL GUARDRAILS:
-                1. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE: Process EVERY SINGLE LINE of the transcript chunk below. Do NOT skip, summarize, or condense ANY part of this transcript text.
-                   - This chunk is short enough for you to cover COMPLETELY. There is NO reason to skip any content.
-                   - If a line mentions a concept, definition, example, or code — it MUST appear in your notes.
-                2. Do NOT change the topic or introduce unrelated subjects. Only write about what is in the transcript.
-                3. Do NOT stop writing until you have covered the LAST LINE of this transcript chunk.
+                1. 100%% EXHAUSTIVE LINE-BY-LINE COVERAGE FOR THIS PART:
+                   - Process EVERY SINGLE SECTION of this transcript chunk from start to end. Do NOT skip, summarize away, or condense ANY concept or topic in this part.
+                   - Every concept, definition, example, timestamp, and code snippet in this chunk MUST appear in your notes.
+                   - When timestamp markers like [01:15:00] appear in the transcript, include timestamp tags `[HH:MM:SS]` in your headings.
+                2. Do NOT change the topic or introduce unrelated subjects. Only write about what is in this transcript chunk.
+                3. Do NOT stop writing until you have covered the LAST line and timestamp of this transcript chunk.
                 %s
                 
                 FORMATTING RULES:
-                - Use clear markdown headers (`## Topic`, `### Subtopic`), bold keywords, and clean bulleted explanations.
+                - `# Part %d: [Module Title covering this section]`
+                - `## [Subtopic Name] [Timestamp]`
+                - Use clear markdown headers, bold keywords, and clean bulleted explanations.
                 - For programming/math: write full, commented code blocks or formulas with line-by-line intuition.
                 - Include `✅ **Key Takeaway**` and `💡 **Pro Tip**` callouts.
                 - %s
                 - Do not include conversational filler or meta intros.
                 
                 ---
-                Transcript Chunk %d of %d for "%s":
+                Transcript Chunk Part %d of %d for "%s":
                 %s
-                """.formatted(chunkIndex + 1, totalChunks, videoTitle, finalInstruction, getDiagramInstruction(includeDiagrams), chunkIndex + 1, totalChunks, videoTitle, chunk);
+                """.formatted(chunkIndex + 1, totalChunks, videoTitle, finalInstruction, chunkIndex + 1, getDiagramInstruction(includeDiagrams), chunkIndex + 1, totalChunks, videoTitle, chunk);
     }
 
     private String buildMergePrompt(String videoTitle, List<String> allChunkNotes, boolean includeDiagrams) {

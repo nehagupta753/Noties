@@ -808,22 +808,11 @@ public class GeminiService {
                    - Highlight major takeaways with `✅ **Key Takeaway:** ...` and pro-tips with `💡 **Pro Tip:** ...`.
                 4. %s
                 5. DO NOT include meta commentary (like "In this video...", "Here are your notes..."). Start directly with the main title and structured content.
-                
+
                 ---
-                
-                **PART 1: Detailed Study Notes**
-                Write a complete, beautifully structured, thorough textbook-grade reference guide based strictly on this video's topic ("%s") spanning the full %s course duration.
-                
-                Then write EXACTLY this separator line on its own line:
-                ===REVISION_NOTES===
-                
-                **PART 2: Quick Revision & Exam Cheat Sheet**
-                Create an exhaustive, high-yield summary designed for rapid review based strictly on this video's topic covering the entire %s duration:
-                - `## 📚 Topic-by-Topic Fast Recap`: 1-2 sentence bullet points per concept.
-                - `## ⚡ Core Principles & Definitions`: Must-know laws, formulas, theorems, and definitions from this topic.
-                - `## 📝 Quick Syntax & Formula Cheat Sheet`: Tables, code snippets, hotkeys, commands, or formulas for this topic.
-                - `## 🧠 High-Yield Flashcard Q&A`: At least 15 clear Question & Answer flashcard pairs (`**Q:** ...` / `**A:** ...`) based on this video's topic.
-                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, descText, videoTitle, durText, durText, durText, getDiagramInstruction(includeDiagrams), videoTitle, durText, durText, durText);
+
+                Write a complete, beautifully structured, thorough textbook-grade reference guide based strictly on this video's topic ("%s") spanning the full %s course duration. Cover every single topic in depth.
+                """.formatted(videoTitle, durText, author != null ? author : "YouTube Creator", kwList, descText, videoTitle, durText, durText, durText, getDiagramInstruction(includeDiagrams), videoTitle, durText);
     }
 
     private String buildMetadataPartPrompt(String videoTitle, String description, String author, String duration, List<String> keywords, int partNum, boolean includeDiagrams) {
@@ -967,19 +956,8 @@ public class GeminiService {
                 ═══════════════════════════════════════════════════════════════
 
                 **OUTPUT FORMAT:**
-
-                **PART 1: Complete Handwritten Notebook Notes**
                 Write deeply detailed student notebook notes covering the ENTIRE video
                 from the very first topic to the very last topic. Leave nothing out.
-
-                Then write EXACTLY this separator on its own line:
-                ===REVISION_NOTES===
-
-                **PART 2: Quick Revision Cheat Sheet**
-                - `## 📚 Topic-by-Topic Rapid Recap` (every module summarized with `→`)
-                - `## ⚡ Must-Know Definitions & Rules`
-                - `## 📝 Syntax & Formula Quick Reference`
-                - `## 🧠 Flashcard Q&A` (20-25 pairs: `**Q:** ...` / `**A:** ...`)
 
                 ═══════════════════════════════════════════════════════════════
                 TRANSCRIPT FOR "%s":

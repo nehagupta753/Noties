@@ -16,6 +16,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 @Service
@@ -56,27 +57,46 @@ public class TranscriptService {
     // ── Fetch Video Data & Metadata ─────────────────────────────────────
 
     public VideoData fetchVideoData(String videoId) {
-        log.info("Fetching video data & metadata for video: {}", videoId);
-        VideoMetadata metadata = fetchVideoMetadata(videoId);
+        log.info("Fetching video metadata and transcript in parallel for video: {}", videoId);
 
-        try {
-            TranscriptResult result = fetchTranscript(videoId);
-            if (result != null && result.text() != null && !result.text().isBlank()) {
-                return new VideoData(
-                        videoId,
-                        metadata.title(),
-                        metadata.description(),
-                        metadata.author(),
-                        metadata.duration(),
-                        metadata.keywords(),
-                        metadata.chapters(),
-                        result.text(),
-                        result.segmentCount(),
-                        true
-                );
+        CompletableFuture<VideoMetadata> metadataFut = CompletableFuture.supplyAsync(() -> fetchVideoMetadata(videoId));
+        CompletableFuture<TranscriptResult> transcriptFut = CompletableFuture.supplyAsync(() -> {
+            try {
+                return fetchTranscript(videoId);
+            } catch (Exception e) {
+                log.warn("Transcript unavailable for video {}: {}. Using video metadata mode.", videoId, e.getMessage());
+                return null;
             }
+        });
+
+        CompletableFuture.allOf(metadataFut, transcriptFut).join();
+
+        VideoMetadata metadata;
+        try {
+            metadata = metadataFut.get();
         } catch (Exception e) {
-            log.warn("Transcript unavailable for video {}: {}. Using video metadata mode.", videoId, e.getMessage());
+            log.warn("Error fetching video metadata for {}: {}", videoId, e.getMessage());
+            metadata = new VideoMetadata("YouTube Video", "", "YouTube Creator", "Unknown", List.of(), List.of());
+        }
+
+        TranscriptResult result = null;
+        try {
+            result = transcriptFut.get();
+        } catch (Exception ignored) {}
+
+        if (result != null && result.text() != null && !result.text().isBlank()) {
+            return new VideoData(
+                    videoId,
+                    metadata.title(),
+                    metadata.description(),
+                    metadata.author(),
+                    metadata.duration(),
+                    metadata.keywords(),
+                    metadata.chapters(),
+                    result.text(),
+                    result.segmentCount(),
+                    true
+            );
         }
 
         return new VideoData(

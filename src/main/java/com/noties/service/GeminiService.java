@@ -86,15 +86,39 @@ public class GeminiService {
         if (listener != null) listener.onProgress("Generating handwritten notebook notes & revision sheet...", 30);
 
         if (isHandwritten) {
-            String prompt = buildHandwrittenNotesPrompt(videoTitle, transcript, includeDiagrams);
-            Map<String, Object> body = Map.of(
-                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
-            );
-            String response = callWithRetry(body, null);
-            String[] parts = response.split("===REVISION_NOTES===");
-            String detailed = parts[0].trim();
-            String revision = parts.length > 1 ? parts[1].trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
+            // Run detailed + revision in parallel for speed
+            CompletableFuture<String> hwDetailedFut = CompletableFuture.supplyAsync(() -> {
+                String prompt = buildHandwrittenNotesPrompt(videoTitle, transcript, includeDiagrams);
+                return callWithRetry(Map.of(
+                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
+                        "generationConfig", Map.of("maxOutputTokens", 65536)
+                ), null);
+            });
+
+            CompletableFuture<String> hwRevisionFut = CompletableFuture.supplyAsync(() -> {
+                String revPrompt = buildRevisionNotesPrompt(videoTitle, transcript, includeDiagrams);
+                return callWithRetry(Map.of(
+                        "contents", List.of(Map.of("parts", List.of(Map.of("text", revPrompt)))),
+                        "generationConfig", Map.of("maxOutputTokens", 16384)
+                ), null);
+            });
+
+            CompletableFuture.allOf(hwDetailedFut, hwRevisionFut).join();
+
+            String detailed = "";
+            String revision = "# Quick Revision\n\n*Included in detailed notes above.*";
+            try {
+                String raw = hwDetailedFut.get();
+                if (raw != null && !raw.isBlank()) {
+                    String[] splitResult = raw.split("===REVISION_NOTES===");
+                    detailed = splitResult[0].trim();
+                }
+            } catch (Exception ignored) {}
+            try {
+                String rev = hwRevisionFut.get();
+                if (rev != null && !rev.isBlank()) revision = rev.trim();
+            } catch (Exception ignored) {}
+
             return Map.of("detailed", detailed, "revision", revision);
         }
 
@@ -111,7 +135,7 @@ public class GeminiService {
             String revisionPrompt = buildRevisionNotesPrompt(videoTitle, transcript, includeDiagrams);
             return callWithRetry(Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", revisionPrompt)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
+                    "generationConfig", Map.of("maxOutputTokens", 16384)
             ), null);
         });
 
@@ -149,7 +173,7 @@ public class GeminiService {
                 : buildMergePrompt(videoTitle, allChunkNotes, includeDiagrams);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 65536)
+                "generationConfig", Map.of("maxOutputTokens", 16384)
         );
         return callWithRetry(body, null);
     }
@@ -203,7 +227,7 @@ public class GeminiService {
                 String p = isHandwritten
                         ? buildHandwrittenMetadataRevisionPrompt(videoTitle, description, author, duration, keywords)
                         : buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
-                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 16384)), null);
             });
 
             CompletableFuture.allOf(p1Fut, p2Fut, p3Fut, p4Fut, revFut).join();
@@ -221,19 +245,48 @@ public class GeminiService {
             return Map.of("detailed", detailedNotes, "revision", revisionNotes);
 
         } else {
-            if (listener != null) listener.onProgress("Generating complete study guide from video outline...", 50);
-            String prompt = isHandwritten
-                    ? buildHandwrittenNotesPrompt(videoTitle, (description != null ? description : "") + "\nKeywords: " + keywords, includeDiagrams)
-                    : buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords, includeDiagrams);
-            Map<String, Object> body = Map.of(
-                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
-            );
+            // Non-long video: run detailed + revision in PARALLEL for speed
+            if (listener != null) listener.onProgress("Generating study guide from video outline...", 40);
 
-            String response = callWithRetry(body, null);
-            String[] parts = response.split("===REVISION_NOTES===");
-            String detailed = parts[0].trim();
-            String revision = parts.length > 1 ? parts[1].trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
+            String descWithKeywords = (description != null ? description : "") + "\nKeywords: " + keywords;
+
+            CompletableFuture<String> detailedFut = CompletableFuture.supplyAsync(() -> {
+                String prompt = isHandwritten
+                        ? buildHandwrittenNotesPrompt(videoTitle, descWithKeywords, includeDiagrams)
+                        : buildMetadataNotesPrompt(videoTitle, description, author, duration, keywords, includeDiagrams);
+                // Single call but for detailed only (no ===REVISION_NOTES=== split needed)
+                return callWithRetry(Map.of(
+                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
+                        "generationConfig", Map.of("maxOutputTokens", 65536)
+                ), null);
+            });
+
+            CompletableFuture<String> revisionFut = CompletableFuture.supplyAsync(() -> {
+                String revPrompt = isHandwritten
+                        ? buildHandwrittenMetadataRevisionPrompt(videoTitle, description, author, duration, keywords)
+                        : buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
+                return callWithRetry(Map.of(
+                        "contents", List.of(Map.of("parts", List.of(Map.of("text", revPrompt)))),
+                        "generationConfig", Map.of("maxOutputTokens", 16384)
+                ), null);
+            });
+
+            CompletableFuture.allOf(detailedFut, revisionFut).join();
+
+            String detailed = "";
+            String revision = "# Quick Revision\n\n*Included in detailed notes above.*";
+            try {
+                String raw = detailedFut.get();
+                if (raw != null && !raw.isBlank()) {
+                    String[] splitParts = raw.split("===REVISION_NOTES===");
+                    detailed = splitParts[0].trim();
+                    // If the single-prompt also generated revision, use it as fallback
+                }
+            } catch (Exception ignored) {}
+            try {
+                String rev = revisionFut.get();
+                if (rev != null && !rev.isBlank()) revision = rev.trim();
+            } catch (Exception ignored) {}
 
             return Map.of("detailed", detailed, "revision", revision);
         }
@@ -275,7 +328,7 @@ public class GeminiService {
                     .uri(URI.create(url))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .timeout(Duration.ofSeconds(300))
+                    .timeout(Duration.ofSeconds(180))
                     .build();
 
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());

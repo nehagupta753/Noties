@@ -23,7 +23,8 @@ public class NotesController {
 
     private static final Logger log = LoggerFactory.getLogger(NotesController.class);
     private static final ObjectMapper mapper = new ObjectMapper();
-    private static final ExecutorService executor = Executors.newFixedThreadPool(10);
+    private static final ExecutorService executor = Executors.newFixedThreadPool(20);
+    private static final ExecutorService chunkExecutor = Executors.newCachedThreadPool();
 
     private final GeminiService gemini;
     private final TranscriptService transcripts;
@@ -55,7 +56,7 @@ public class NotesController {
 
         final String noteStyle = "handwritten";
         final boolean isHandwritten = true;
-        final boolean includeDiagrams = false;
+        final boolean includeDiagrams = true;
 
         String requestId = UUID.randomUUID().toString().substring(0, 8);
 
@@ -116,7 +117,7 @@ public class NotesController {
                             String chunk = chunks.get(i);
                             futures.add(CompletableFuture.supplyAsync(
                                     () -> gemini.generateNotesForChunk(title, chunk, idx, chunks.size(), isHandwritten, includeDiagrams),
-                                    executor
+                                    chunkExecutor
                             ));
                         }
 

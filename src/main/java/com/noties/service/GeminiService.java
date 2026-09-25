@@ -36,8 +36,8 @@ public class GeminiService {
     // Working models in priority order
     private static final List<String> MODEL_CHAIN = List.of(
             "gemini-2.0-flash",
-            "gemini-1.5-flash",
             "gemini-2.0-flash-lite",
+            "gemini-1.5-flash",
             "gemini-1.5-pro"
     );
 
@@ -91,7 +91,7 @@ public class GeminiService {
                 String prompt = buildHandwrittenNotesPrompt(videoTitle, transcript, includeDiagrams);
                 return callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                        "generationConfig", Map.of("maxOutputTokens", 65536)
+                        "generationConfig", Map.of("maxOutputTokens", 32768)
                 ), null);
             });
 
@@ -127,7 +127,7 @@ public class GeminiService {
             String detailedPrompt = buildDetailedNotesPrompt(videoTitle, transcript, includeDiagrams);
             return callWithRetry(Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", detailedPrompt)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
+                    "generationConfig", Map.of("maxOutputTokens", 32768)
             ), null);
         });
 
@@ -157,7 +157,7 @@ public class GeminiService {
                 : buildChunkNotesPrompt(videoTitle, chunk, chunkIndex, totalChunks, includeDiagrams);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 65536)
+                "generationConfig", Map.of("maxOutputTokens", 32768)
         );
         return callWithRetry(body, chunkIndex);
     }
@@ -199,28 +199,28 @@ public class GeminiService {
                 String p = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1, includeDiagrams)
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1, includeDiagrams);
-                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 32768)), null);
             });
 
             CompletableFuture<String> p2Fut = CompletableFuture.supplyAsync(() -> {
                 String p = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2, includeDiagrams)
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2, includeDiagrams);
-                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 32768)), null);
             });
 
             CompletableFuture<String> p3Fut = CompletableFuture.supplyAsync(() -> {
                 String p = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3, includeDiagrams)
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3, includeDiagrams);
-                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 32768)), null);
             });
 
             CompletableFuture<String> p4Fut = CompletableFuture.supplyAsync(() -> {
                 String p = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4, includeDiagrams)
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4, includeDiagrams);
-                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 32768)), null);
             });
 
             CompletableFuture<String> revFut = CompletableFuture.supplyAsync(() -> {
@@ -257,7 +257,7 @@ public class GeminiService {
                 // Single call but for detailed only (no ===REVISION_NOTES=== split needed)
                 return callWithRetry(Map.of(
                         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-                        "generationConfig", Map.of("maxOutputTokens", 65536)
+                        "generationConfig", Map.of("maxOutputTokens", 32768)
                 ), null);
             });
 
@@ -433,14 +433,14 @@ public class GeminiService {
                     // 503: Temporary server busy -> short pause and try next combo
                     if (msg.contains("503") || msg.contains("overloaded") || msg.contains("Unavailable")) {
                         log.warn("{} busy (503) - trying next model", combo.model);
-                        sleep(2000);
+                        sleep(500);
                         continue;
                     }
 
                     // Network error -> brief pause and try next combo
                     if (msg.contains("Connection reset") || msg.contains("timed out") || msg.contains("network")) {
                         log.warn("{} network error - trying next model", combo.model);
-                        sleep(3000);
+                        sleep(500);
                         continue;
                     }
 
@@ -449,7 +449,7 @@ public class GeminiService {
             }
 
             // If full round of available combos failed, wait briefly before next cycle
-            int retrySecs = Math.max(getSoonestRetrySecs(), 10);
+            int retrySecs = Math.max(getSoonestRetrySecs(), 2);
             log.info("Retrying next cycle in {}s...", retrySecs);
             sleep(retrySecs * 1000L);
         }
@@ -460,7 +460,7 @@ public class GeminiService {
      * asking it to resume from where it left off. Repeats up to MAX_CONTINUATIONS times.
      */
     private String handleTruncatedOutput(String truncatedResult, Map<String, ?> originalRequest, String model, String apiKey) {
-        final int MAX_CONTINUATIONS = 5;
+        final int MAX_CONTINUATIONS = 2;
         StringBuilder accumulated = new StringBuilder();
         accumulated.append(truncatedResult.replace(TRUNCATED_SENTINEL, ""));
 
@@ -487,7 +487,7 @@ public class GeminiService {
 
             Map<String, Object> contBody = Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", continuationPrompt)))),
-                    "generationConfig", Map.of("maxOutputTokens", 65536)
+                    "generationConfig", Map.of("maxOutputTokens", 16384)
             );
 
             try {

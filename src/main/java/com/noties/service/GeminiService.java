@@ -849,7 +849,7 @@ public class GeminiService {
                 - Minimum 15-20 rapid-fire flashcards formatted as:
                   - **Q:** [Question]
                     **A:** [Direct, accurate answer]
-                """.formatted(videoTitle, videoTitle, durText, videoTitle, durText);
+                """.formatted(durText, videoTitle, durText, videoTitle, durText);
     }
 
     // ── Handwritten Mode Prompts ───────────────────────────────────────
@@ -913,7 +913,7 @@ public class GeminiService {
                 ---
                 TRANSCRIPT FOR VIDEO "%s":
                 %s
-                """.formatted(videoTitle, getDiagramInstruction(includeDiagrams), videoTitle, transcript);
+                """.formatted(videoTitle, videoTitle, getDiagramInstruction(includeDiagrams), videoTitle, transcript);
     }
 
     private String buildHandwrittenChunkNotesPrompt(String videoTitle, String chunk, int chunkIndex, int totalChunks, boolean includeDiagrams) {

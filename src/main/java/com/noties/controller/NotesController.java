@@ -156,17 +156,15 @@ public class NotesController {
 
             } catch (Exception e) {
                 log.error("[Req:{}] Note generation error for videoId '{}': {}", requestId, videoId, e.getMessage(), e);
-                String msg = e.getMessage() != null ? e.getMessage() : "";
+                String msg = (e.getMessage() != null && !e.getMessage().isBlank()) ? e.getMessage() : e.toString();
 
-                String errorMsg = "Something went wrong while generating notes. Please try again.";
-                if (msg.contains("API key")) {
-                    errorMsg = "Missing or invalid Gemini API key in .env file.";
+                String errorMsg = msg;
+                if (msg.contains("API key") || msg.contains("403")) {
+                    errorMsg = "Missing or invalid Gemini API key. Please check your API key configuration.";
                 } else if (msg.matches("(?i).*(503|demand|overloaded|Unavailable).*")) {
-                    errorMsg = "Gemini servers are busy right now. Please try again in a moment.";
+                    errorMsg = "Gemini AI servers are busy right now. Please try again in a moment.";
                 } else if (msg.matches("(?i).*(quota|rate|limit|429).*")) {
-                    errorMsg = "API rate limit reached. Please wait a moment or add another key.";
-                } else if (!msg.isBlank()) {
-                    errorMsg = msg;
+                    errorMsg = "API rate limit reached. Please wait a moment before trying again.";
                 }
 
                 sendError(emitter, errorMsg);

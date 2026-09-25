@@ -92,8 +92,8 @@ public class NotesController {
                 String detailedNotes;
                 String revisionNotes;
 
-                int CHUNK_THRESHOLD = 45_000;
-                int CHUNK_SIZE = 40_000;
+                int CHUNK_THRESHOLD = 30_000;
+                int CHUNK_SIZE = 25_000;
 
                 if (hasTranscript && transcript != null && !transcript.isBlank()) {
                     sendProgress(emitter, isHandwritten ? "Transcript validated! Writing handwritten notebook notes..." : "Transcript validated! Generating study notes...", 25);
@@ -107,9 +107,9 @@ public class NotesController {
                         revisionNotes = notes.getOrDefault("revision", "");
                     } else {
                         List<String> chunks = transcripts.splitTranscriptIntoChunks(transcript, CHUNK_SIZE);
-                        log.info("[Req:{}] Long video detected ({} chars): processing {} parts in parallel",
+                        log.info("[Req:{}] Long video detected ({} chars): processing {} parts + revision in parallel",
                                 requestId, transcript.length(), chunks.size());
-                        sendProgress(emitter, "Full course video detected (" + chunks.size() + " parts)! Processing all sections in parallel...", 30);
+                        sendProgress(emitter, "Full course video detected (" + chunks.size() + " parts)! Processing all sections + revision in parallel...", 30);
 
                         List<CompletableFuture<String>> futures = new ArrayList<>();
                         for (int i = 0; i < chunks.size(); i++) {
@@ -121,7 +121,15 @@ public class NotesController {
                             ));
                         }
 
-                        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                        // Run Quick Revision sheet concurrently in parallel with all chunk futures
+                        CompletableFuture<String> revisionFut = CompletableFuture.supplyAsync(
+                                () -> gemini.generateConsolidatedRevision(title, chunks, isHandwritten, includeDiagrams),
+                                chunkExecutor
+                        );
+
+                        List<CompletableFuture<?>> allFut = new ArrayList<>(futures);
+                        allFut.add(revisionFut);
+                        CompletableFuture.allOf(allFut.toArray(new CompletableFuture[0])).join();
 
                         List<String> chunkResults = new ArrayList<>();
                         for (var f : futures) {
@@ -135,8 +143,12 @@ public class NotesController {
 
                         detailedNotes = String.join("\n\n---\n\n", chunkResults);
 
-                        sendProgress(emitter, "Consolidating Quick Revision Sheet & Flashcards...", 85);
-                        revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults, isHandwritten, includeDiagrams);
+                        try {
+                            String rev = revisionFut.get();
+                            revisionNotes = (rev != null && !rev.isBlank()) ? rev.trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
+                        } catch (Exception e) {
+                            revisionNotes = "# Quick Revision\n\n*Included in detailed notes above.*";
+                        }
                     }
                 } else {
                     log.info("[Req:{}] Transcript unavailable. Generating notes from video outline and metadata for '{}'", requestId, title);

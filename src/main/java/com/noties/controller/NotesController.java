@@ -106,26 +106,35 @@ public class NotesController {
                         revisionNotes = notes.getOrDefault("revision", "");
                     } else {
                         List<String> chunks = transcripts.splitTranscriptIntoChunks(transcript, CHUNK_SIZE);
-                        log.info("[Req:{}] Long video detected ({} chars): processing {} parts sequentially",
+                        log.info("[Req:{}] Long video detected ({} chars): processing {} parts in parallel",
                                 requestId, transcript.length(), chunks.size());
-                        sendProgress(emitter, "Full course video detected (" + chunks.size() + " parts)! Analyzing and generating notes from start to finish...", 25);
+                        sendProgress(emitter, "Full course video detected (" + chunks.size() + " parts)! Processing all sections in parallel...", 30);
 
-                        List<String> chunkResults = new ArrayList<>();
+                        List<CompletableFuture<String>> futures = new ArrayList<>();
                         for (int i = 0; i < chunks.size(); i++) {
                             int idx = i;
                             String chunk = chunks.get(i);
-                            int progress = 25 + Math.round(((float) (idx + 1) / chunks.size()) * 60);
-                            sendProgress(emitter, (isHandwritten ? "Writing handwritten notes for Part " : "Analyzing & writing notes for Part ") + (idx + 1) + " of " + chunks.size() + "...", progress);
+                            futures.add(CompletableFuture.supplyAsync(
+                                    () -> gemini.generateNotesForChunk(title, chunk, idx, chunks.size(), isHandwritten, includeDiagrams),
+                                    executor
+                            ));
+                        }
 
-                            String chunkNotes = gemini.generateNotesForChunk(title, chunk, idx, chunks.size(), isHandwritten, includeDiagrams);
-                            if (chunkNotes != null && !chunkNotes.isBlank()) {
-                                chunkResults.add(chunkNotes);
-                            }
+                        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+                        List<String> chunkResults = new ArrayList<>();
+                        for (var f : futures) {
+                            try {
+                                String res = f.get();
+                                if (res != null && !res.isBlank()) {
+                                    chunkResults.add(res);
+                                }
+                            } catch (Exception ignored) {}
                         }
 
                         detailedNotes = String.join("\n\n---\n\n", chunkResults);
 
-                        sendProgress(emitter, "Creating comprehensive Quick Revision Sheet & Flashcards for all " + chunks.size() + " parts...", 90);
+                        sendProgress(emitter, "Consolidating Quick Revision Sheet & Flashcards...", 85);
                         revisionNotes = gemini.generateConsolidatedRevision(title, chunkResults, isHandwritten, includeDiagrams);
                     }
                 } else {

@@ -13,6 +13,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -82,27 +83,43 @@ public class GeminiService {
     }
 
     public Map<String, String> generateNotes(String videoTitle, String transcript, boolean isHandwritten, boolean includeDiagrams, ProgressListener listener) {
-        if (listener != null) listener.onProgress("Generating comprehensive detailed study notes...", 30);
+        if (listener != null) listener.onProgress("Generating handwritten notebook notes & revision sheet...", 30);
 
-        // Step 1: Dedicated call for exhaustive detailed study notes
-        String detailedPrompt = buildDetailedNotesPrompt(videoTitle, transcript, includeDiagrams);
-        Map<String, Object> bodyDetailed = Map.of(
-                "contents", List.of(Map.of("parts", List.of(Map.of("text", detailedPrompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 65536)
-        );
-        String detailedNotes = callWithRetry(bodyDetailed, null);
+        if (isHandwritten) {
+            String prompt = buildHandwrittenNotesPrompt(videoTitle, transcript, includeDiagrams);
+            Map<String, Object> body = Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            );
+            String response = callWithRetry(body, null);
+            String[] parts = response.split("===REVISION_NOTES===");
+            String detailed = parts[0].trim();
+            String revision = parts.length > 1 ? parts[1].trim() : "# Quick Revision\n\n*Included in detailed notes above.*";
+            return Map.of("detailed", detailed, "revision", revision);
+        }
 
-        if (listener != null) listener.onProgress("Creating Quick Revision Sheet & Flashcards...", 75);
+        // Standard mode: Run detailed and revision generation concurrently in parallel
+        CompletableFuture<String> detailedFut = CompletableFuture.supplyAsync(() -> {
+            String detailedPrompt = buildDetailedNotesPrompt(videoTitle, transcript, includeDiagrams);
+            return callWithRetry(Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", detailedPrompt)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            ), null);
+        });
 
-        // Step 2: Dedicated call for Quick Revision Sheet & Flashcard Recall Q&A
-        String revisionPrompt = buildRevisionNotesPrompt(videoTitle, detailedNotes, includeDiagrams);
-        Map<String, Object> bodyRevision = Map.of(
-                "contents", List.of(Map.of("parts", List.of(Map.of("text", revisionPrompt)))),
-                "generationConfig", Map.of("maxOutputTokens", 65536)
-        );
-        String revisionNotes = callWithRetry(bodyRevision, null);
+        CompletableFuture<String> revisionFut = CompletableFuture.supplyAsync(() -> {
+            String revisionPrompt = buildRevisionNotesPrompt(videoTitle, transcript, includeDiagrams);
+            return callWithRetry(Map.of(
+                    "contents", List.of(Map.of("parts", List.of(Map.of("text", revisionPrompt)))),
+                    "generationConfig", Map.of("maxOutputTokens", 65536)
+            ), null);
+        });
 
-        return Map.of("detailed", detailedNotes.trim(), "revision", revisionNotes.trim());
+        CompletableFuture.allOf(detailedFut, revisionFut).join();
+        String detailedNotes = detailedFut.join();
+        String revisionNotes = revisionFut.join();
+
+        return Map.of("detailed", detailedNotes != null ? detailedNotes.trim() : "", "revision", revisionNotes != null ? revisionNotes.trim() : "");
     }
 
     // Generate notes for a single chunk of a long video (backwards compatible)
@@ -151,86 +168,57 @@ public class GeminiService {
         boolean isLongCourse = duration != null && (duration.contains("Hours") || duration.contains("hour") || duration.contains("hr"));
 
         if (isLongCourse) {
-            log.info("Long full-course video detected in metadata mode (duration: {}, handwritten: {}). Generating 4 comprehensive course parts + revision sheet...", duration, isHandwritten);
-            List<String> partsList = new ArrayList<>();
+            log.info("Long full-course video detected in metadata mode (duration: {}, handwritten: {}). Generating 4 comprehensive course parts + revision sheet in parallel...", duration, isHandwritten);
+            if (listener != null) listener.onProgress("Generating all course parts in parallel...", 40);
 
-            // Part 1: Foundations & Core Architecture
-            if (listener != null) listener.onProgress("Generating Part 1 of 4: Foundations & Core Architecture...", 35);
-            try {
-                String prompt1 = isHandwritten
+            CompletableFuture<String> p1Fut = CompletableFuture.supplyAsync(() -> {
+                String p = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1, includeDiagrams)
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 1, includeDiagrams);
-                String p1 = callWithRetry(Map.of(
-                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt1)))),
-                        "generationConfig", Map.of("maxOutputTokens", 65536)
-                ), null);
-                if (p1 != null && !p1.isBlank()) partsList.add(p1.trim());
-            } catch (Exception e) {
-                log.warn("Metadata Part 1 generation warning: {}", e.getMessage());
-            }
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+            });
 
-            // Part 2: State Management, Forms & Effect Hooks
-            if (listener != null) listener.onProgress("Generating Part 2 of 4: State Management & Essential Hooks...", 50);
-            try {
-                String prompt2 = isHandwritten
+            CompletableFuture<String> p2Fut = CompletableFuture.supplyAsync(() -> {
+                String p = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2, includeDiagrams)
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 2, includeDiagrams);
-                String p2 = callWithRetry(Map.of(
-                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt2)))),
-                        "generationConfig", Map.of("maxOutputTokens", 65536)
-                ), null);
-                if (p2 != null && !p2.isBlank()) partsList.add(p2.trim());
-            } catch (Exception e) {
-                log.warn("Metadata Part 2 generation warning: {}", e.getMessage());
-            }
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+            });
 
-            // Part 3: Advanced Hooks, Routing & Global State Management
-            if (listener != null) listener.onProgress("Generating Part 3 of 4: Advanced Hooks, Routing & Global State...", 65);
-            try {
-                String prompt3 = isHandwritten
+            CompletableFuture<String> p3Fut = CompletableFuture.supplyAsync(() -> {
+                String p = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3, includeDiagrams)
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 3, includeDiagrams);
-                String p3 = callWithRetry(Map.of(
-                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt3)))),
-                        "generationConfig", Map.of("maxOutputTokens", 65536)
-                ), null);
-                if (p3 != null && !p3.isBlank()) partsList.add(p3.trim());
-            } catch (Exception e) {
-                log.warn("Metadata Part 3 generation warning: {}", e.getMessage());
-            }
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+            });
 
-            // Part 4: Real-World Projects, Performance Optimization & Production Deployment
-            if (listener != null) listener.onProgress("Generating Part 4 of 4: Real-World Projects & Production Deployment...", 80);
-            try {
-                String prompt4 = isHandwritten
+            CompletableFuture<String> p4Fut = CompletableFuture.supplyAsync(() -> {
+                String p = isHandwritten
                         ? buildHandwrittenMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4, includeDiagrams)
                         : buildMetadataPartPrompt(videoTitle, description, author, duration, keywords, 4, includeDiagrams);
-                String p4 = callWithRetry(Map.of(
-                        "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt4)))),
-                        "generationConfig", Map.of("maxOutputTokens", 65536)
-                ), null);
-                if (p4 != null && !p4.isBlank()) partsList.add(p4.trim());
-            } catch (Exception e) {
-                log.warn("Metadata Part 4 generation warning: {}", e.getMessage());
-            }
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+            });
 
-            // Part 5: Comprehensive Revision Sheet
-            if (listener != null) listener.onProgress("Creating comprehensive Quick Revision Sheet...", 90);
-            String revisionNotes = "# Quick Revision\n\n*Included in detailed notes above.*";
-            try {
-                String promptRev = isHandwritten
+            CompletableFuture<String> revFut = CompletableFuture.supplyAsync(() -> {
+                String p = isHandwritten
                         ? buildHandwrittenMetadataRevisionPrompt(videoTitle, description, author, duration, keywords)
                         : buildMetadataRevisionPrompt(videoTitle, description, author, duration, keywords);
-                revisionNotes = callWithRetry(Map.of(
-                        "contents", List.of(Map.of("parts", List.of(Map.of("text", promptRev)))),
-                        "generationConfig", Map.of("maxOutputTokens", 65536)
-                ), null);
-            } catch (Exception e) {
-                log.warn("Metadata Revision generation warning: {}", e.getMessage());
-            }
+                return callWithRetry(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", p)))), "generationConfig", Map.of("maxOutputTokens", 65536)), null);
+            });
+
+            CompletableFuture.allOf(p1Fut, p2Fut, p3Fut, p4Fut, revFut).join();
+
+            List<String> partsList = new ArrayList<>();
+            try { if (p1Fut.get() != null && !p1Fut.get().isBlank()) partsList.add(p1Fut.get().trim()); } catch (Exception ignored) {}
+            try { if (p2Fut.get() != null && !p2Fut.get().isBlank()) partsList.add(p2Fut.get().trim()); } catch (Exception ignored) {}
+            try { if (p3Fut.get() != null && !p3Fut.get().isBlank()) partsList.add(p3Fut.get().trim()); } catch (Exception ignored) {}
+            try { if (p4Fut.get() != null && !p4Fut.get().isBlank()) partsList.add(p4Fut.get().trim()); } catch (Exception ignored) {}
+
+            String revisionNotes = "# Quick Revision\n\n*Included in detailed notes above.*";
+            try { if (revFut.get() != null && !revFut.get().isBlank()) revisionNotes = revFut.get().trim(); } catch (Exception ignored) {}
 
             String detailedNotes = String.join("\n\n---\n\n", partsList);
-            return Map.of("detailed", detailedNotes, "revision", revisionNotes.trim());
+            return Map.of("detailed", detailedNotes, "revision", revisionNotes);
 
         } else {
             if (listener != null) listener.onProgress("Generating complete study guide from video outline...", 50);
